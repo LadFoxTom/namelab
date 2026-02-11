@@ -1,5 +1,16 @@
 import { XMLParser } from "fast-xml-parser";
+import { ProxyAgent, fetch as proxyFetch } from "undici";
 import { ProviderResult } from "./types";
+
+// Use proxy for outbound requests when QUOTAGUARD_URL is set (Vercel has no static IP)
+function fetchWithProxy(url: string): Promise<{ text(): Promise<string> }> {
+  const proxyUrl = process.env.QUOTAGUARD_URL;
+  if (proxyUrl) {
+    const dispatcher = new ProxyAgent(proxyUrl);
+    return proxyFetch(url, { dispatcher }) as Promise<{ text(): Promise<string> }>;
+  }
+  return fetch(url);
+}
 
 // Cache TLD pricing to avoid repeated API calls
 let pricingCache: Map<string, number> | null = null;
@@ -24,7 +35,7 @@ async function fetchTldPricing(): Promise<Map<string, number>> {
   const url = `${baseUrl}?ApiUser=${encodeURIComponent(apiUser)}&ApiKey=${encodeURIComponent(apiKey)}&UserName=${encodeURIComponent(apiUser)}&ClientIp=${encodeURIComponent(clientIp)}&Command=namecheap.users.getPricing&ProductType=DOMAIN&ActionName=REGISTER`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetchWithProxy(url);
     const xml = await response.text();
 
     const parser = new XMLParser({
@@ -124,7 +135,7 @@ export async function checkNamecheapAvailability(
   const url = `${baseUrl}?ApiUser=${encodeURIComponent(apiUser)}&ApiKey=${encodeURIComponent(apiKey)}&UserName=${encodeURIComponent(apiUser)}&ClientIp=${encodeURIComponent(clientIp)}&Command=namecheap.domains.check&DomainList=${encodeURIComponent(domainList)}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetchWithProxy(url);
     const xml = await response.text();
 
     const parser = new XMLParser({
