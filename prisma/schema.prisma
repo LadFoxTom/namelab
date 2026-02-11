@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String?
+  createdAt    DateTime      @default(now())
+  searches     Search[]
+  subscription Subscription?
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id])
+  stripeCustomerId     String?
+  stripeSubscriptionId String?   @unique
+  status               String // "active", "canceled", "past_due"
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime  @default(now())
+}
+
+model Search {
+  id           String             @id @default(cuid())
+  userId       String?
+  user         User?              @relation(fields: [userId], references: [id])
+  businessIdea String
+  industry     String?
+  createdAt    DateTime           @default(now())
+  suggestions  DomainSuggestion[]
+}
+
+model DomainSuggestion {
+  id                String        @id @default(cuid())
+  searchId          String
+  search            Search        @relation(fields: [searchId], references: [id])
+  domain            String
+  available         Boolean
+  reasoning         String
+  namingStrategy    String
+  brandabilityScore Int
+  memorabilityScore Int
+  seoScore          Int
+  providers         DomainPrice[]
+  createdAt         DateTime      @default(now())
+}
+
+model DomainPrice {
+  id           String           @id @default(cuid())
+  suggestionId String
+  suggestion   DomainSuggestion @relation(fields: [suggestionId], references: [id])
+  registrar    String // "namecheap", "godaddy", "namesilo"
+  price        Decimal
+  currency     String           @default("USD")
+  affiliateUrl String
+  available    Boolean
+  isPremium    Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+
+  @@unique([suggestionId, registrar])
+}
+
+model AffiliateClick {
+  id           String    @id @default(cuid())
+  userId       String?
+  domain       String
+  registrar    String
+  affiliateUrl String
+  clickedAt    DateTime  @default(now())
+  convertedAt  DateTime?
+}
