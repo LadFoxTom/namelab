@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import ResultsSection from "@/components/ResultsSection";
@@ -8,25 +8,54 @@ import FeaturesSection from "@/components/FeaturesSection";
 import Footer from "@/components/Footer";
 import { DomainResult, GenerateResponse } from "@/lib/types";
 
+const ALL_TLDS = [".com", ".io", ".ai", ".co", ".net", ".app", ".nl", ".dev", ".xyz"];
+const SESSION_KEY = "sparkdomain-results";
+
+function loadSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as {
+      prompt: string;
+      domains: DomainResult[];
+      domainCount: number;
+      selectedTlds: string[];
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [domains, setDomains] = useState<DomainResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [domainCount, setDomainCount] = useState<number>(6);
+  const [selectedTlds, setSelectedTlds] = useState<string[]>([...ALL_TLDS]);
 
-  const generateDomains = async () => {
-    if (!prompt.trim() || loading) return;
+  // Restore results from sessionStorage on mount (e.g. after browser back)
+  useEffect(() => {
+    const saved = loadSession();
+    if (saved && saved.domains.length > 0) {
+      setPrompt(saved.prompt);
+      setDomains(saved.domains);
+      setDomainCount(saved.domainCount);
+      setSelectedTlds(saved.selectedTlds);
+      setHasSearched(true);
+    }
+  }, []);
 
+  const fetchDomains = async (businessIdea: string) => {
     setLoading(true);
     setError(null);
-    setHasSearched(false);
 
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessIdea: prompt }),
+        body: JSON.stringify({ businessIdea, count: domainCount, tlds: selectedTlds }),
       });
 
       const data: GenerateResponse = await response.json();
@@ -39,6 +68,14 @@ export default function Home() {
       if (data.success && data.results) {
         setDomains(data.results);
         setHasSearched(true);
+
+        // Persist to sessionStorage so results survive navigation
+        try {
+          sessionStorage.setItem(
+            SESSION_KEY,
+            JSON.stringify({ prompt: businessIdea, domains: data.results, domainCount, selectedTlds })
+          );
+        } catch { /* quota exceeded — ignore */ }
 
         setTimeout(() => {
           document
@@ -53,6 +90,23 @@ export default function Home() {
     }
   };
 
+  const generateDomains = async () => {
+    if (!prompt.trim() || loading) return;
+    setHasSearched(false);
+    await fetchDomains(prompt);
+  };
+
+  const handleRegenerate = () => {
+    if (!prompt.trim() || loading) return;
+    fetchDomains(prompt);
+  };
+
+  const handleMoreLikeThis = (domain: DomainResult) => {
+    if (loading) return;
+    const idea = `Generate domain names similar in style and feel to "${domain.domain}" (${domain.namingStrategy}). Original business idea: ${prompt}`;
+    fetchDomains(idea);
+  };
+
   return (
     <div className="bg-white text-gray-800 font-sans selection:bg-pastel-purple selection:text-purple-900">
       <Navbar />
@@ -63,6 +117,11 @@ export default function Home() {
           setPrompt={setPrompt}
           loading={loading}
           onGenerate={generateDomains}
+          domainCount={domainCount}
+          setDomainCount={setDomainCount}
+          selectedTlds={selectedTlds}
+          setSelectedTlds={setSelectedTlds}
+          allTlds={ALL_TLDS}
         />
 
         {error && (
@@ -74,7 +133,12 @@ export default function Home() {
         )}
 
         {hasSearched && domains.length > 0 && (
-          <ResultsSection domains={domains} />
+          <ResultsSection
+            domains={domains}
+            loading={loading}
+            onRegenerate={handleRegenerate}
+            onMoreLikeThis={handleMoreLikeThis}
+          />
         )}
 
         {hasSearched && domains.length === 0 && !error && (

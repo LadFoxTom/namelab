@@ -47,6 +47,8 @@ export interface DomainResult {
 export interface GenerateRequest {
   businessIdea: string;
   userId?: string;
+  count?: number;
+  tlds?: string[];
 }
 
 export interface GenerateResponse {
@@ -61,4 +63,24 @@ export interface TrackClickRequest {
   registrar: string;
   affiliateUrl: string;
   userId?: string;
+}
+
+export interface TldVariation {
+  domain: string;
+  tld: string;
+  available: boolean;
+  providers: AffiliateProvider[];
+  cheapestProvider: {
+    registrar: string;
+    price: number;
+    affiliateUrl: string;
+  } | null;
+  siteTitle: string | null;
+}
+
+export interface TldCheckResponse {
+  success: boolean;
+  baseName: string;
+  variations: TldVariation[];
+  error?: string;
 }

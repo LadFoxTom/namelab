@@ -16,7 +16,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateRequest;
-    const { businessIdea, userId } = body;
+    const { businessIdea, userId, count, tlds } = body;
 
     if (!businessIdea || typeof businessIdea !== "string" || businessIdea.trim().length === 0) {
       return NextResponse.json(
@@ -38,12 +38,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine max suggestions based on tier
+    // Determine max suggestions based on tier and user preference
+    // Generate 3x the requested count since many domains (especially .com) will be taken
     const tier = await getUserTier(userId || null);
-    const maxSuggestions = tier === "free" ? 10 : 20;
+    const tierMax = tier === "free" ? 10 : 20;
+    const desiredCount = count || tierMax;
+    const generateCount = Math.min(desiredCount * 3, 30);
 
-    // Generate domain suggestions via Claude
-    const aiResponse = await generateDomainSuggestions(businessIdea, maxSuggestions);
+    // Generate domain suggestions via AI
+    const aiResponse = await generateDomainSuggestions(businessIdea, generateCount, tlds);
     const { industry, suggestions } = aiResponse;
 
     const domainNames = suggestions.map((s) => s.domain);
@@ -171,7 +174,10 @@ export async function POST(request: NextRequest) {
       console.error("Database save error:", dbError);
     }
 
-    return NextResponse.json({ success: true, results });
+    // Trim to the user's desired count
+    const finalResults = count ? results.slice(0, count) : results;
+
+    return NextResponse.json({ success: true, results: finalResults });
   } catch (error) {
     console.error("Generate API error:", error);
     return NextResponse.json(

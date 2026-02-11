@@ -1,33 +1,105 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
+import LoginModal from "./LoginModal";
+import { useAuth } from "./AuthContext";
+import { useCurrency } from "./CurrencyContext";
+import { CURRENCIES, Currency } from "@/lib/currency";
 
 export default function Navbar() {
+  const [showModal, setShowModal] = useState(false);
+  const [modalTab, setModalTab] = useState<"login" | "signup">("login");
+  const { user, loading, logout } = useAuth();
+  const { currency, setCurrency } = useCurrency();
+
+  const openLogin = () => {
+    setModalTab("login");
+    setShowModal(true);
+  };
+
+  const openSignup = () => {
+    setModalTab("signup");
+    setShowModal(true);
+  };
+
   return (
-    <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 transition-all duration-300">
-      <div className="max-w-[1440px] mx-auto px-6 md:px-12 h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg">
-            N
+    <>
+      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 transition-all duration-300">
+        <div className="max-w-[1440px] mx-auto px-6 md:px-12 h-20 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg">
+              S
+            </div>
+            <span className="font-medium text-lg tracking-tight">
+              Sparkdomain
+            </span>
+          </Link>
+
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Currency toggle */}
+            <div className="hidden md:flex items-center bg-gray-100 rounded-full p-0.5">
+              {CURRENCIES.map((c) => (
+                <button
+                  key={c.code}
+                  onClick={() => setCurrency(c.code as Currency)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+                    currency === c.code
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-400 hover:text-gray-600"
+                  }`}
+                >
+                  {c.symbol} {c.label}
+                </button>
+              ))}
+            </div>
+
+            {!loading && !user && (
+              <>
+                <button
+                  onClick={openLogin}
+                  className="px-3 sm:px-5 py-2 rounded-full text-sm font-medium text-gray-600 hover:text-black transition-colors"
+                >
+                  Login
+                </button>
+                <button
+                  onClick={openSignup}
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium hover:shadow-lg hover:shadow-purple-200/50 hover:scale-105 transition-all duration-200"
+                >
+                  <span className="hidden sm:inline">Create Account</span>
+                  <span className="sm:hidden">Sign Up</span>
+                </button>
+              </>
+            )}
+
+            {!loading && user && (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xs font-bold">
+                    {(user.name?.[0] || user.email[0]).toUpperCase()}
+                  </div>
+                  <span className="hidden md:inline text-sm font-medium text-gray-700">
+                    {user.name || user.email.split("@")[0]}
+                  </span>
+                </div>
+                <button
+                  onClick={logout}
+                  className="px-4 py-2 rounded-full text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
-          <span className="font-medium text-lg tracking-tight">Namer.ai</span>
-        </Link>
-        <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-500">
-          <Link href="#" className="hover:text-black transition-colors">
-            Pricing
-          </Link>
-          <Link href="#" className="hover:text-black transition-colors">
-            API
-          </Link>
-          <Link href="#" className="hover:text-black transition-colors">
-            About
-          </Link>
-          <Link
-            href="#"
-            className="text-black hover:opacity-70 transition-opacity"
-          >
-            Login
-          </Link>
         </div>
-      </div>
-    </nav>
+      </nav>
+
+      {showModal && (
+        <LoginModal
+          onClose={() => setShowModal(false)}
+          initialTab={modalTab}
+        />
+      )}
+    </>
   );
 }
