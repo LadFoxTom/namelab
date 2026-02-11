@@ -86,7 +86,7 @@ async function fetchTldPricing(): Promise<Map<string, number>> {
     console.log(
       "Namecheap TLD pricing loaded:",
       Object.fromEntries(
-        [...priceMap.entries()]
+        Array.from(priceMap.entries())
           .filter(([tld]) =>
             ["com", "io", "ai", "co", "net", "app", "nl", "dev", "xyz", "org"].includes(tld)
           )
