@@ -74,7 +74,10 @@ SEO Potential (0-100) — How well does it signal relevance to search engines?
 
 IMPORTANT: Scores MUST vary significantly across suggestions. A brandable invented word should score high on brandability but low on SEO. A keyword-rich domain should score high on SEO but lower on brandability. Be honest and critical — not every domain deserves 80+.
 
-${includeWords && includeWords.length > 0 ? `INCLUDE WORDS (important): The following words should be incorporated into the domain names where possible. Try to use them as part of the domain — as a root, prefix, suffix, or blended into a portmanteau. At least half of the suggestions MUST contain one or more of these words (or a natural variation): ${includeWords.join(", ")}` : ""}
+${includeWords && includeWords.length > 0 ? `INCLUDE WORDS (MANDATORY — this is the most important rule):
+Every single domain suggestion MUST contain at least one of the following words: ${includeWords.join(", ")}
+The word must appear clearly in the domain — as a prefix (e.g., "CraftStudio"), suffix (e.g., "WallCraft"), root of a compound (e.g., "Craftify"), or naturally blended into a portmanteau (e.g., "Craftopia").
+Do NOT generate any domain that does not contain one of these words. If a suggestion doesn't include one of these words, replace it with one that does. This is non-negotiable.` : ""}
 ${excludeWords && excludeWords.length > 0 ? `EXCLUDE WORDS (strict): NEVER use any of the following words (or close variations of them) in any domain suggestion: ${excludeWords.join(", ")}` : ""}
 
 Requirements:
