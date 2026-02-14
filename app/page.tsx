@@ -34,6 +34,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [domainCount, setDomainCount] = useState<number>(6);
   const [selectedTlds, setSelectedTlds] = useState<string[]>([...ALL_TLDS]);
+  const [includeWords, setIncludeWords] = useState<string[]>([]);
+  const [excludeWords, setExcludeWords] = useState<string[]>([]);
 
   // Restore results from sessionStorage on mount (e.g. after browser back)
   useEffect(() => {
@@ -55,7 +57,13 @@ export default function Home() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessIdea, count: domainCount, tlds: selectedTlds }),
+        body: JSON.stringify({
+          businessIdea,
+          count: domainCount,
+          tlds: selectedTlds,
+          includeWords: includeWords.length > 0 ? includeWords : undefined,
+          excludeWords: excludeWords.length > 0 ? excludeWords : undefined,
+        }),
       });
 
       const data: GenerateResponse = await response.json();
@@ -122,6 +130,10 @@ export default function Home() {
           selectedTlds={selectedTlds}
           setSelectedTlds={setSelectedTlds}
           allTlds={ALL_TLDS}
+          includeWords={includeWords}
+          setIncludeWords={setIncludeWords}
+          excludeWords={excludeWords}
+          setExcludeWords={setExcludeWords}
         />
 
         {error && (

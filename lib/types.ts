@@ -49,6 +49,8 @@ export interface GenerateRequest {
   userId?: string;
   count?: number;
   tlds?: string[];
+  includeWords?: string[];
+  excludeWords?: string[];
 }
 
 export interface GenerateResponse {

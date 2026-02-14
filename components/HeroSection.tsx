@@ -12,6 +12,10 @@ interface HeroSectionProps {
   selectedTlds: string[];
   setSelectedTlds: (value: string[]) => void;
   allTlds: string[];
+  includeWords: string[];
+  setIncludeWords: (value: string[]) => void;
+  excludeWords: string[];
+  setExcludeWords: (value: string[]) => void;
 }
 
 const textGradientStyle = {
@@ -33,8 +37,15 @@ export default function HeroSection({
   selectedTlds,
   setSelectedTlds,
   allTlds,
+  includeWords,
+  setIncludeWords,
+  excludeWords,
+  setExcludeWords,
 }: HeroSectionProps) {
   const [tldDropdownOpen, setTldDropdownOpen] = useState(false);
+  const [includeInput, setIncludeInput] = useState("");
+  const [excludeInput, setExcludeInput] = useState("");
+  const [keywordsOpen, setKeywordsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -56,6 +67,22 @@ export default function HeroSection({
     } else {
       setSelectedTlds([...selectedTlds, tld]);
     }
+  };
+
+  const addIncludeWord = () => {
+    const word = includeInput.trim().toLowerCase();
+    if (word && !includeWords.includes(word)) {
+      setIncludeWords([...includeWords, word]);
+    }
+    setIncludeInput("");
+  };
+
+  const addExcludeWord = () => {
+    const word = excludeInput.trim().toLowerCase();
+    if (word && !excludeWords.includes(word)) {
+      setExcludeWords([...excludeWords, word]);
+    }
+    setExcludeInput("");
   };
 
   const allSelected = selectedTlds.length === allTlds.length;
@@ -230,6 +257,31 @@ export default function HeroSection({
               )}
             </div>
 
+            {/* Keywords toggle */}
+            <button
+              onClick={() => setKeywordsOpen(!keywordsOpen)}
+              className={`flex items-center gap-2 px-4 py-3 rounded-full border text-sm transition-all ${
+                includeWords.length > 0 || excludeWords.length > 0
+                  ? "border-purple-300 bg-purple-50 text-purple-600"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span>
+                {includeWords.length + excludeWords.length > 0
+                  ? `${includeWords.length + excludeWords.length} keyword${includeWords.length + excludeWords.length !== 1 ? "s" : ""}`
+                  : "Keywords"}
+              </span>
+              <svg
+                className={`w-3 h-3 text-gray-400 transition-transform ${keywordsOpen ? "rotate-180" : ""}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
             {/* Generate button — fixed width */}
             <button
               onClick={onGenerate}
@@ -297,6 +349,99 @@ export default function HeroSection({
               ))}
             </div>
           </div>
+
+          {/* Keywords panel */}
+          {keywordsOpen && (
+            <div className="w-full max-w-xl mx-auto mt-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm animate-slide-up">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Include words */}
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
+                    Include words
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={includeInput}
+                      onChange={(e) => setIncludeInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addIncludeWord())}
+                      placeholder="e.g. craft"
+                      className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-50 font-light"
+                    />
+                    <button
+                      onClick={addIncludeWord}
+                      className="px-3 py-2 text-sm bg-green-50 text-green-600 border border-green-200 rounded-xl hover:bg-green-100 transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {includeWords.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {includeWords.map((word) => (
+                        <span
+                          key={word}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 text-xs rounded-full border border-green-200"
+                        >
+                          {word}
+                          <button
+                            onClick={() => setIncludeWords(includeWords.filter((w) => w !== word))}
+                            className="hover:text-green-900 transition-colors"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Exclude words */}
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
+                    Exclude words
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={excludeInput}
+                      onChange={(e) => setExcludeInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addExcludeWord())}
+                      placeholder="e.g. cheap"
+                      className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-50 font-light"
+                    />
+                    <button
+                      onClick={addExcludeWord}
+                      className="px-3 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {excludeWords.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {excludeWords.map((word) => (
+                        <span
+                          key={word}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-700 text-xs rounded-full border border-red-200"
+                        >
+                          {word}
+                          <button
+                            onClick={() => setExcludeWords(excludeWords.filter((w) => w !== word))}
+                            className="hover:text-red-900 transition-colors"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="hidden sm:flex items-center justify-center gap-8 mt-8 opacity-70">
             <div className="flex items-center gap-2">

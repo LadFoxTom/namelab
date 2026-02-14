@@ -16,7 +16,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateRequest;
-    const { businessIdea, userId, count, tlds } = body;
+    const { businessIdea, userId, count, tlds, includeWords, excludeWords } = body;
 
     if (!businessIdea || typeof businessIdea !== "string" || businessIdea.trim().length === 0) {
       return NextResponse.json(
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const generateCount = Math.min(desiredCount * 3, 30);
 
     // Generate domain suggestions via AI
-    const aiResponse = await generateDomainSuggestions(businessIdea, generateCount, tlds);
+    const aiResponse = await generateDomainSuggestions(businessIdea, generateCount, tlds, includeWords, excludeWords);
     const { industry, suggestions } = aiResponse;
 
     const domainNames = suggestions.map((s) => s.domain);
