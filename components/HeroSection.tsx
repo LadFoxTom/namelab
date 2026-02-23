@@ -16,6 +16,7 @@ interface HeroSectionProps {
   setIncludeWords: (value: string[]) => void;
   excludeWords: string[];
   setExcludeWords: (value: string[]) => void;
+  isDomainMode: boolean;
 }
 
 const textGradientStyle = {
@@ -41,6 +42,7 @@ export default function HeroSection({
   setIncludeWords,
   excludeWords,
   setExcludeWords,
+  isDomainMode,
 }: HeroSectionProps) {
   const [tldDropdownOpen, setTldDropdownOpen] = useState(false);
   const [includeInput, setIncludeInput] = useState("");
@@ -107,8 +109,9 @@ export default function HeroSection({
           className="text-base sm:text-lg md:text-xl text-gray-500 font-light max-w-2xl mx-auto leading-relaxed animate-slide-up"
           style={{ animationDelay: "200ms" }}
         >
-          Describe your project, and our AI will generate available, premium
-          domain names with semantic reasoning.
+          {isDomainMode
+            ? "We'll check availability and pricing across multiple registrars."
+            : "Describe your project, and our AI will generate available, premium domain names with semantic reasoning."}
         </p>
 
         <div
@@ -120,7 +123,10 @@ export default function HeroSection({
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               className="w-full h-28 sm:h-36 p-4 sm:p-6 pr-10 sm:pr-12 text-base sm:text-lg bg-white border-2 border-gray-200 rounded-2xl sm:rounded-3xl resize-none focus:outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-50 transition-all duration-300 shadow-soft group-hover:shadow-lg placeholder:text-gray-300 font-light"
-              placeholder="e.g. A minimalist coffee shop in Tokyo that also sells vintage vinyl records..."
+              placeholder={isDomainMode
+                ? "e.g. coolshop.com"
+                : "e.g. A minimalist coffee shop in Tokyo that also sells vintage vinyl records..."
+              }
             />
 
             <div
@@ -258,7 +264,7 @@ export default function HeroSection({
             </div>
 
             {/* Keywords toggle */}
-            <button
+            {!isDomainMode && <button
               onClick={() => setKeywordsOpen(!keywordsOpen)}
               className={`flex items-center gap-2 px-4 py-3 rounded-full border text-sm transition-all ${
                 includeWords.length > 0 || excludeWords.length > 0
@@ -280,7 +286,7 @@ export default function HeroSection({
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
-            </button>
+            </button>}
 
             {/* Generate button — fixed width */}
             <button
@@ -310,11 +316,11 @@ export default function HeroSection({
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  <span>Finding domains...</span>
+                  <span>{isDomainMode ? "Checking availability..." : "Finding domains..."}</span>
                 </>
               ) : (
                 <>
-                  <span>Generate Domains</span>
+                  <span>{isDomainMode ? "Check Availability" : "Generate Domains"}</span>
                   <svg
                     className="w-4 h-4"
                     fill="none"
@@ -333,7 +339,7 @@ export default function HeroSection({
             </button>
 
             {/* Count selector */}
-            <div className="flex items-center bg-white border border-gray-200 rounded-full p-1">
+            {!isDomainMode && <div className="flex items-center bg-white border border-gray-200 rounded-full p-1">
               {COUNT_OPTIONS.map((n) => (
                 <button
                   key={n}
@@ -347,11 +353,11 @@ export default function HeroSection({
                   {n}
                 </button>
               ))}
-            </div>
+            </div>}
           </div>
 
           {/* Keywords panel */}
-          {keywordsOpen && (
+          {!isDomainMode && keywordsOpen && (
             <div className="w-full max-w-xl mx-auto mt-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm animate-slide-up">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Include words */}

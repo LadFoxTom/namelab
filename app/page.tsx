@@ -11,6 +11,13 @@ import { DomainResult, GenerateResponse } from "@/lib/types";
 const ALL_TLDS = [".com", ".io", ".ai", ".co", ".net", ".app", ".nl", ".dev", ".xyz"];
 const SESSION_KEY = "sparkdomain-results";
 
+/** Returns true when the input looks like a domain name rather than a business description */
+function looksLikeDomain(input: string): boolean {
+  const trimmed = input.trim();
+  // A domain-like input has no spaces and is a plausible domain (letters, digits, hyphens, optionally a dot+tld)
+  return trimmed.length > 0 && !/\s/.test(trimmed) && /^[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})?$/.test(trimmed);
+}
+
 function loadSession() {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
@@ -49,21 +56,29 @@ export default function Home() {
     }
   }, []);
 
-  const fetchDomains = async (businessIdea: string) => {
+  const isDomainMode = looksLikeDomain(prompt);
+
+  const fetchDomains = async (input: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/generate", {
+      const isDomain = looksLikeDomain(input);
+      const url = isDomain ? "/api/check-domain" : "/api/generate";
+      const payload = isDomain
+        ? { domain: input, tlds: selectedTlds }
+        : {
+            businessIdea: input,
+            count: domainCount,
+            tlds: selectedTlds,
+            includeWords: includeWords.length > 0 ? includeWords : undefined,
+            excludeWords: excludeWords.length > 0 ? excludeWords : undefined,
+          };
+
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          businessIdea,
-          count: domainCount,
-          tlds: selectedTlds,
-          includeWords: includeWords.length > 0 ? includeWords : undefined,
-          excludeWords: excludeWords.length > 0 ? excludeWords : undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data: GenerateResponse = await response.json();
@@ -81,7 +96,7 @@ export default function Home() {
         try {
           sessionStorage.setItem(
             SESSION_KEY,
-            JSON.stringify({ prompt: businessIdea, domains: data.results, domainCount, selectedTlds })
+            JSON.stringify({ prompt: input, domains: data.results, domainCount, selectedTlds })
           );
         } catch { /* quota exceeded — ignore */ }
 
@@ -134,6 +149,7 @@ export default function Home() {
           setIncludeWords={setIncludeWords}
           excludeWords={excludeWords}
           setExcludeWords={setExcludeWords}
+          isDomainMode={isDomainMode}
         />
 
         {error && (

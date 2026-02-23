@@ -85,9 +85,10 @@ export default function DomainCard({ domain, index, onMoreLikeThis }: DomainCard
   const [expanded, setExpanded] = useState(false);
   const { currency } = useCurrency();
 
-  const avgScore = Math.round(
-    (domain.brandabilityScore + domain.memorabilityScore + domain.seoScore) / 3
-  );
+  const hasScores = domain.brandabilityScore > 0 || domain.memorabilityScore > 0 || domain.seoScore > 0;
+  const avgScore = hasScores
+    ? Math.round((domain.brandabilityScore + domain.memorabilityScore + domain.seoScore) / 3)
+    : 0;
   const scoreColor = getScoreColor(avgScore);
   const tld = "." + domain.domain.split(".").pop()?.toUpperCase();
   const cheapest = domain.cheapestProvider;
@@ -117,9 +118,9 @@ export default function DomainCard({ domain, index, onMoreLikeThis }: DomainCard
               <span className="inline-flex px-2.5 py-1 rounded-full bg-green-50 text-[10px] font-medium uppercase tracking-wider text-green-600">
                 Available
               </span>
-              <span className="inline-flex px-2.5 py-1 rounded-full bg-purple-50 text-[10px] font-medium uppercase tracking-wider text-purple-600">
+              {hasScores && <span className="inline-flex px-2.5 py-1 rounded-full bg-purple-50 text-[10px] font-medium uppercase tracking-wider text-purple-600">
                 {domain.namingStrategy}
-              </span>
+              </span>}
               <Link
                 href={detailUrl}
                 className="inline-flex items-center gap-1 text-[10px] text-purple-400 hover:text-purple-600 transition-colors ml-1"
@@ -131,7 +132,7 @@ export default function DomainCard({ domain, index, onMoreLikeThis }: DomainCard
               </Link>
             </div>
           </div>
-          <div className="flex flex-col items-center shrink-0">
+          {hasScores && <div className="flex flex-col items-center shrink-0">
             <div
               className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center text-lg sm:text-2xl font-light text-white shadow-sm ${scoreColor}`}
             >
@@ -140,38 +141,42 @@ export default function DomainCard({ domain, index, onMoreLikeThis }: DomainCard
             <Link href="/scoring" className="text-[10px] uppercase tracking-wider text-gray-400 mt-1 font-medium hover:text-purple-500 transition-colors cursor-pointer">
               Score
             </Link>
-          </div>
+          </div>}
         </div>
 
-        <div className="mb-3 sm:mb-4 min-h-[48px] sm:min-h-[60px]">
-          <p className="text-gray-600 text-xs sm:text-sm leading-relaxed font-light">
-            {domain.reasoning}
-          </p>
-        </div>
+        {hasScores && (
+          <div className="mb-3 sm:mb-4 min-h-[48px] sm:min-h-[60px]">
+            <p className="text-gray-600 text-xs sm:text-sm leading-relaxed font-light">
+              {domain.reasoning}
+            </p>
+          </div>
+        )}
 
         {/* Score breakdown */}
-        <div className="mb-4 sm:mb-6 space-y-2 p-3 sm:p-4 bg-gray-50/80 rounded-xl sm:rounded-2xl">
-          <ScoreBar
-            label="Brand"
-            score={domain.brandabilityScore}
-            icon={<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>}
-          />
-          <ScoreBar
-            label="Memory"
-            score={domain.memorabilityScore}
-            icon={<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>}
-          />
-          <ScoreBar
-            label="SEO"
-            score={domain.seoScore}
-            icon={<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>}
-          />
-          <div className="pt-1">
-            <Link href="/scoring" className="text-[10px] text-gray-400 hover:text-purple-500 transition-colors">
-              How are scores calculated?
-            </Link>
+        {hasScores && (
+          <div className="mb-4 sm:mb-6 space-y-2 p-3 sm:p-4 bg-gray-50/80 rounded-xl sm:rounded-2xl">
+            <ScoreBar
+              label="Brand"
+              score={domain.brandabilityScore}
+              icon={<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>}
+            />
+            <ScoreBar
+              label="Memory"
+              score={domain.memorabilityScore}
+              icon={<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>}
+            />
+            <ScoreBar
+              label="SEO"
+              score={domain.seoScore}
+              icon={<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>}
+            />
+            <div className="pt-1">
+              <Link href="/scoring" className="text-[10px] text-gray-400 hover:text-purple-500 transition-colors">
+                How are scores calculated?
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="h-px w-full bg-gray-100 mb-4 sm:mb-6"></div>
 
@@ -294,7 +299,7 @@ export default function DomainCard({ domain, index, onMoreLikeThis }: DomainCard
             )}
           </div>
         )}
-        {onMoreLikeThis && (
+        {hasScores && onMoreLikeThis && (
           <div className="mt-4 pt-2 border-t border-gray-100">
             <button
               onClick={onMoreLikeThis}
