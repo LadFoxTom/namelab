@@ -6,7 +6,8 @@ export async function generateDomainSuggestions(
   maxSuggestions: number = 15,
   tlds?: string[],
   includeWords?: string[],
-  excludeWords?: string[]
+  excludeWords?: string[],
+  alreadyTried?: string[]
 ): Promise<ClaudeResponse> {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -86,7 +87,8 @@ Requirements:
 - Strongly prioritize .com — at least half of suggestions should use .com${tlds && tlds.includes(".com") ? "" : " (if .com is in the allowed list)"}
 - Keep domain names (without TLD) under 15 characters when possible
 - Generate exactly ${maxSuggestions} suggestions
-- Every suggestion must pass the "business card test" — would you be proud to print this domain on a professional business card?`;
+- Every suggestion must pass the "business card test" — would you be proud to print this domain on a professional business card?
+${alreadyTried && alreadyTried.length > 0 ? `\nALREADY TRIED (do NOT suggest any of these again — they are taken or were already rejected): ${alreadyTried.join(", ")}` : ""}`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o",

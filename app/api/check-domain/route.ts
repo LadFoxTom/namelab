@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkNamecheapAvailability } from "@/lib/namecheap";
-import { checkGoDaddyAvailability } from "@/lib/godaddy";
-import { checkNameSiloAvailability } from "@/lib/namesilo";
+import { checkDomainsAvailability } from "@/lib/check-availability";
 import { generateAffiliateUrl } from "@/lib/affiliate";
 import {
   DomainResult,
-  ProviderResult,
   AffiliateProvider,
 } from "@/lib/types";
 
@@ -48,27 +45,8 @@ export async function POST(request: NextRequest) {
       domainsToCheck = selectedTlds.map((tld) => `${baseName}${tld}`);
     }
 
-    // Check availability across all registrars in parallel
-    const [namecheapResults, godaddyResults, namesiloResults] =
-      await Promise.allSettled([
-        checkNamecheapAvailability(domainsToCheck),
-        checkGoDaddyAvailability(domainsToCheck),
-        checkNameSiloAvailability(domainsToCheck),
-      ]);
-
-    // Build provider map: domain -> ProviderResult[]
-    const providerMap = new Map<string, ProviderResult[]>();
-    const allResults: ProviderResult[] = [
-      ...(namecheapResults.status === "fulfilled" ? namecheapResults.value : []),
-      ...(godaddyResults.status === "fulfilled" ? godaddyResults.value : []),
-      ...(namesiloResults.status === "fulfilled" ? namesiloResults.value : []),
-    ];
-
-    for (const result of allResults) {
-      const key = result.domain.toLowerCase();
-      if (!providerMap.has(key)) providerMap.set(key, []);
-      providerMap.get(key)!.push(result);
-    }
+    // Check availability using shared helper
+    const providerMap = await checkDomainsAvailability(domainsToCheck);
 
     // Build results in DomainResult format for UI compatibility
     const results: DomainResult[] = [];
@@ -77,9 +55,8 @@ export async function POST(request: NextRequest) {
       const key = domainName.toLowerCase();
       const providers = providerMap.get(key) || [];
       const availableProviders = providers.filter((p) => p.available);
-      const isAvailable = availableProviders.length > 0;
 
-      if (!isAvailable) continue;
+      if (availableProviders.length === 0) continue;
 
       const affiliateProviders: AffiliateProvider[] = availableProviders.map(
         (p) => ({

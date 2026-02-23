@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateDomainSuggestions } from "@/lib/anthropic";
-import { checkNamecheapAvailability } from "@/lib/namecheap";
-import { checkGoDaddyAvailability } from "@/lib/godaddy";
-import { checkNameSiloAvailability } from "@/lib/namesilo";
+import { checkDomainsAvailability, buildDomainResult } from "@/lib/check-availability";
 import { generateAffiliateUrl } from "@/lib/affiliate";
 import { checkRateLimit, getUserTier } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
 import {
   GenerateRequest,
   DomainResult,
+  DomainSuggestion,
   ProviderResult,
-  AffiliateProvider,
 } from "@/lib/types";
+
+const MAX_ITERATIONS = 3;
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,96 +38,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine max suggestions based on tier and user preference
-    // Generate 3x the requested count since many domains (especially .com) will be taken
     const tier = await getUserTier(userId || null);
     const tierMax = tier === "free" ? 10 : 20;
     const desiredCount = count || tierMax;
-    const generateCount = Math.min(desiredCount * 3, 30);
 
-    // Generate domain suggestions via AI
-    const aiResponse = await generateDomainSuggestions(businessIdea, generateCount, tlds, includeWords, excludeWords);
-    const { industry, suggestions } = aiResponse;
+    // Iterative generate-check loop
+    const availableResults: DomainResult[] = [];
+    const alreadyTried: string[] = [];
+    const allSuggestions: DomainSuggestion[] = [];
+    const allProviderMap = new Map<string, ProviderResult[]>();
+    let industry: string | undefined;
 
-    const domainNames = suggestions.map((s) => s.domain);
+    for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+      const remainingNeeded = desiredCount - availableResults.length;
+      const generateCount = Math.min(Math.max(remainingNeeded * 3, 6), 30);
 
-    // Check availability across all registrars in parallel
-    const [namecheapResults, godaddyResults, namesiloResults] =
-      await Promise.allSettled([
-        checkNamecheapAvailability(domainNames),
-        checkGoDaddyAvailability(domainNames),
-        checkNameSiloAvailability(domainNames),
-      ]);
+      console.log(`[Generate] Iteration ${iteration + 1}/${MAX_ITERATIONS}: need ${remainingNeeded} more, generating ${generateCount} suggestions (${alreadyTried.length} already tried)`);
 
-    // Build a lookup map: domain -> provider results
-    const providerMap = new Map<string, ProviderResult[]>();
-    const allResults = [
-      ...(namecheapResults.status === "fulfilled" ? namecheapResults.value : []),
-      ...(godaddyResults.status === "fulfilled" ? godaddyResults.value : []),
-      ...(namesiloResults.status === "fulfilled" ? namesiloResults.value : []),
-    ];
+      // Generate domain suggestions via AI
+      const aiResponse = await generateDomainSuggestions(
+        businessIdea,
+        generateCount,
+        tlds,
+        includeWords,
+        excludeWords,
+        alreadyTried.length > 0 ? alreadyTried : undefined
+      );
 
-    console.log("Total provider results:", allResults.length);
-    console.log("Provider results:", allResults.map(r => `${r.domain}: ${r.available} (${r.registrar})`));
-
-    for (const result of allResults) {
-      const key = result.domain.toLowerCase();
-      if (!providerMap.has(key)) {
-        providerMap.set(key, []);
+      if (!industry) {
+        industry = aiResponse.industry;
       }
-      providerMap.get(key)!.push(result);
-    }
 
-    // Combine AI suggestions with availability data
-    const results: DomainResult[] = [];
+      const { suggestions } = aiResponse;
+      allSuggestions.push(...suggestions);
 
-    for (const suggestion of suggestions) {
-      const domainKey = suggestion.domain.toLowerCase();
-      const providers = providerMap.get(domainKey) || [];
+      const domainNames = suggestions.map((s) => s.domain);
 
-      // Determine if the domain is available from any provider
-      const availableProviders = providers.filter((p) => p.available);
-      const isAvailable = availableProviders.length > 0;
+      // Check availability across all registrars
+      const providerMap = await checkDomainsAvailability(domainNames);
 
-      if (!isAvailable) continue; // Only return available domains
-
-      // Build provider list with affiliate URLs
-      const affiliateProviders: AffiliateProvider[] = availableProviders.map(
-        (p) => ({
-          registrar: p.registrar,
-          price: p.price,
-          affiliateUrl: generateAffiliateUrl(
-            suggestion.domain,
-            p.registrar as "namecheap" | "godaddy" | "namesilo"
-          ),
-          isPremium: p.isPremium,
-          available: p.available,
-        })
-      );
-
-      // Find cheapest provider
-      const cheapest = affiliateProviders.reduce(
-        (min, p) => (p.price < min.price ? p : min),
-        affiliateProviders[0]
-      );
-
-      results.push({
-        id: `sug_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        domain: suggestion.domain,
-        reasoning: suggestion.reasoning,
-        namingStrategy: suggestion.namingStrategy,
-        brandabilityScore: suggestion.brandabilityScore,
-        memorabilityScore: suggestion.memorabilityScore,
-        seoScore: suggestion.seoScore,
-        providers: affiliateProviders,
-        cheapestProvider: cheapest
-          ? {
-              registrar: cheapest.registrar,
-              price: cheapest.price,
-              affiliateUrl: cheapest.affiliateUrl,
-            }
-          : null,
+      // Merge into allProviderMap for DB save
+      providerMap.forEach((providers, key) => {
+        allProviderMap.set(key, providers);
       });
+
+      // Build results, filter to available only
+      for (const suggestion of suggestions) {
+        alreadyTried.push(suggestion.domain);
+
+        const result = buildDomainResult(suggestion, providerMap);
+        if (result) {
+          availableResults.push(result);
+        }
+      }
+
+      console.log(`[Generate] Iteration ${iteration + 1}: found ${availableResults.length}/${desiredCount} available domains`);
+
+      if (availableResults.length >= desiredCount) {
+        break;
+      }
     }
 
     // Save to database
@@ -138,9 +107,9 @@ export async function POST(request: NextRequest) {
           businessIdea,
           industry: industry || null,
           suggestions: {
-            create: suggestions.map((s) => {
+            create: allSuggestions.map((s) => {
               const domainKey = s.domain.toLowerCase();
-              const providers = providerMap.get(domainKey) || [];
+              const providers = allProviderMap.get(domainKey) || [];
               const availableFromAny = providers.some((p) => p.available);
 
               return {
@@ -170,12 +139,11 @@ export async function POST(request: NextRequest) {
         },
       });
     } catch (dbError) {
-      // Log but don't fail the request if DB save fails
       console.error("Database save error:", dbError);
     }
 
     // Trim to the user's desired count
-    const finalResults = count ? results.slice(0, count) : results;
+    const finalResults = availableResults.slice(0, desiredCount);
 
     return NextResponse.json({ success: true, results: finalResults });
   } catch (error) {
