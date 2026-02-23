@@ -7,7 +7,9 @@ export async function generateDomainSuggestions(
   tlds?: string[],
   includeWords?: string[],
   excludeWords?: string[],
-  alreadyTried?: string[]
+  alreadyTried?: string[],
+  minLength?: number,
+  maxLength?: number
 ): Promise<ClaudeResponse> {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -80,6 +82,7 @@ Every single domain suggestion MUST contain at least one of the following words:
 The word must appear clearly in the domain — as a prefix (e.g., "CraftStudio"), suffix (e.g., "WallCraft"), root of a compound (e.g., "Craftify"), or naturally blended into a portmanteau (e.g., "Craftopia").
 Do NOT generate any domain that does not contain one of these words. If a suggestion doesn't include one of these words, replace it with one that does. This is non-negotiable.` : ""}
 ${excludeWords && excludeWords.length > 0 ? `EXCLUDE WORDS (strict): NEVER use any of the following words (or close variations of them) in any domain suggestion: ${excludeWords.join(", ")}` : ""}
+${minLength || maxLength ? `DOMAIN NAME LENGTH (strict — this applies to the name part ONLY, excluding the TLD dot and extension):${minLength ? `\n- Minimum ${minLength} characters (do NOT suggest any domain name shorter than ${minLength} characters before the TLD)` : ""}${maxLength ? `\n- Maximum ${maxLength} characters (do NOT suggest any domain name longer than ${maxLength} characters before the TLD)` : ""}` : ""}
 
 Requirements:
 - Mix different naming strategies (use at least 3 different strategies across suggestions)

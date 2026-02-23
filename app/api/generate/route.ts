@@ -16,7 +16,7 @@ const MAX_ITERATIONS = 3;
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateRequest;
-    const { businessIdea, userId, count, tlds, includeWords, excludeWords } = body;
+    const { businessIdea, userId, count, tlds, includeWords, excludeWords, minLength, maxLength } = body;
 
     if (!businessIdea || typeof businessIdea !== "string" || businessIdea.trim().length === 0) {
       return NextResponse.json(
@@ -62,7 +62,9 @@ export async function POST(request: NextRequest) {
         tlds,
         includeWords,
         excludeWords,
-        alreadyTried.length > 0 ? alreadyTried : undefined
+        alreadyTried.length > 0 ? alreadyTried : undefined,
+        minLength,
+        maxLength
       );
 
       if (!industry) {

@@ -51,6 +51,8 @@ export interface GenerateRequest {
   tlds?: string[];
   includeWords?: string[];
   excludeWords?: string[];
+  minLength?: number;
+  maxLength?: number;
 }
 
 export interface GenerateResponse {

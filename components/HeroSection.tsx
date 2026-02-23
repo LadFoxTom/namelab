@@ -16,6 +16,10 @@ interface HeroSectionProps {
   setIncludeWords: (value: string[]) => void;
   excludeWords: string[];
   setExcludeWords: (value: string[]) => void;
+  minLength: number | undefined;
+  setMinLength: (value: number | undefined) => void;
+  maxLength: number | undefined;
+  setMaxLength: (value: number | undefined) => void;
   isDomainMode: boolean;
 }
 
@@ -42,6 +46,10 @@ export default function HeroSection({
   setIncludeWords,
   excludeWords,
   setExcludeWords,
+  minLength,
+  setMinLength,
+  maxLength,
+  setMaxLength,
   isDomainMode,
 }: HeroSectionProps) {
   const [tldDropdownOpen, setTldDropdownOpen] = useState(false);
@@ -267,7 +275,7 @@ export default function HeroSection({
             {!isDomainMode && <button
               onClick={() => setKeywordsOpen(!keywordsOpen)}
               className={`flex items-center gap-2 px-4 py-3 rounded-full border text-sm transition-all ${
-                includeWords.length > 0 || excludeWords.length > 0
+                includeWords.length > 0 || excludeWords.length > 0 || minLength || maxLength
                   ? "border-purple-300 bg-purple-50 text-purple-600"
                   : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
               }`}
@@ -276,9 +284,9 @@ export default function HeroSection({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
               </svg>
               <span>
-                {includeWords.length + excludeWords.length > 0
-                  ? `${includeWords.length + excludeWords.length} keyword${includeWords.length + excludeWords.length !== 1 ? "s" : ""}`
-                  : "Keywords"}
+                {includeWords.length + excludeWords.length > 0 || minLength || maxLength
+                  ? "Filters active"
+                  : "Filters"}
               </span>
               <svg
                 className={`w-3 h-3 text-gray-400 transition-transform ${keywordsOpen ? "rotate-180" : ""}`}
@@ -359,6 +367,34 @@ export default function HeroSection({
           {/* Keywords panel */}
           {!isDomainMode && keywordsOpen && (
             <div className="w-full max-w-xl mx-auto mt-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm animate-slide-up">
+              {/* Character length filters */}
+              <div className="flex items-center gap-3 mb-4">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  Name length
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={minLength ?? ""}
+                    onChange={(e) => setMinLength(e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="Min"
+                    className="w-20 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-50 font-light text-center"
+                  />
+                  <span className="text-gray-400 text-sm">—</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={maxLength ?? ""}
+                    onChange={(e) => setMaxLength(e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="Max"
+                    className="w-20 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-50 font-light text-center"
+                  />
+                  <span className="text-xs text-gray-400">chars</span>
+                </div>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Include words */}
                 <div>

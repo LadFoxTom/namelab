@@ -43,6 +43,8 @@ export default function Home() {
   const [selectedTlds, setSelectedTlds] = useState<string[]>([...ALL_TLDS]);
   const [includeWords, setIncludeWords] = useState<string[]>([]);
   const [excludeWords, setExcludeWords] = useState<string[]>([]);
+  const [minLength, setMinLength] = useState<number | undefined>(undefined);
+  const [maxLength, setMaxLength] = useState<number | undefined>(undefined);
 
   // Restore results from sessionStorage on mount (e.g. after browser back)
   useEffect(() => {
@@ -73,6 +75,8 @@ export default function Home() {
             tlds: selectedTlds,
             includeWords: includeWords.length > 0 ? includeWords : undefined,
             excludeWords: excludeWords.length > 0 ? excludeWords : undefined,
+            minLength: minLength || undefined,
+            maxLength: maxLength || undefined,
           };
 
       const response = await fetch(url, {
@@ -149,6 +153,10 @@ export default function Home() {
           setIncludeWords={setIncludeWords}
           excludeWords={excludeWords}
           setExcludeWords={setExcludeWords}
+          minLength={minLength}
+          setMinLength={setMinLength}
+          maxLength={maxLength}
+          setMaxLength={setMaxLength}
           isDomainMode={isDomainMode}
         />
 
