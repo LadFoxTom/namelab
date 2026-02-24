@@ -21,7 +21,9 @@ export async function generateDomainSuggestions(
   const tonePrompt = tones ? buildTonePrompt(tones) : "";
   const structurePrompt = structures ? buildStructurePrompt(structures) : "";
 
-  const prompt = `You are a world-class brand naming expert. Generate ${maxSuggestions} strong, professional domain name suggestions for this business idea: "${businessIdea}"
+  const prompt = `You are a world-class brand naming expert and creative wordsmith. Generate EXACTLY ${maxSuggestions} unique, creative domain name suggestions for this business idea: "${businessIdea}"
+
+CRITICAL: You MUST generate exactly ${maxSuggestions} suggestions. Do NOT return fewer. Be wildly creative and diverse — quantity matters!
 
 Return ONLY valid JSON (no markdown, no code fences) in this exact format:
 {
@@ -93,7 +95,7 @@ ${alreadyTried && alreadyTried.length > 0 ? `\nALREADY TRIED (do NOT suggest any
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o",
-    max_tokens: 4000,
+    max_tokens: 8000,
     messages: [
       {
         role: "user",
@@ -103,7 +105,25 @@ ${alreadyTried && alreadyTried.length > 0 ? `\nALREADY TRIED (do NOT suggest any
   });
 
   const responseText = completion.choices[0]?.message?.content || "";
-  const parsed = JSON.parse(responseText);
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch {
+    // Strip markdown fences and retry
+    const cleaned = responseText.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // Last resort: extract JSON object with regex
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (match) {
+        parsed = JSON.parse(match[0]);
+      } else {
+        console.error("[Anthropic] Could not parse AI response:", responseText.slice(0, 300));
+        parsed = { industry: "general", suggestions: [] };
+      }
+    }
+  }
 
   // Normalize: AI no longer returns memorabilityScore, set to 0 (will be overridden by LQS)
   if (parsed.suggestions) {

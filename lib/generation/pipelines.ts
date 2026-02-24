@@ -15,41 +15,41 @@ const PIPELINES: PipelineConfig[] = [
     id: "portmanteau",
     label: "Portmanteau",
     matchesStructure: ["portmanteau"],
-    count: 4,
+    count: 10,
     promptFragment:
-      "Focus ONLY on portmanteau names: blend two relevant words into smooth new words where parts of each word merge seamlessly. Examples: Pinterest (pin+interest), Groupon (group+coupon).",
+      "Focus ONLY on portmanteau names: blend two relevant words into smooth new words where parts of each word merge seamlessly. Examples: Pinterest (pin+interest), Groupon (group+coupon), Instragram (instant+telegram). Be wildly creative — invent unexpected blends!",
   },
   {
     id: "invented",
     label: "Invented Word",
     matchesStructure: ["invented"],
-    count: 4,
+    count: 10,
     promptFragment:
-      "Focus ONLY on invented words: create entirely new words that don't exist in any dictionary but sound natural and easy to pronounce. Examples: Spotify, Zillow, Hulu.",
+      "Focus ONLY on invented words: create entirely new words that don't exist in any dictionary but sound natural and easy to pronounce. Think phonetically pleasing sounds. Examples: Spotify, Zillow, Hulu, Kodak, Vimeo, Trello. Go wild with creative sounds!",
   },
   {
     id: "compound",
     label: "Compound/Descriptive",
     matchesStructure: ["compound"],
-    count: 4,
+    count: 10,
     promptFragment:
-      "Focus ONLY on compound/descriptive names: combine two real, recognizable words into a single domain. Both words should be clearly identifiable. Examples: Mailchimp, Dropbox, Salesforce.",
+      "Focus ONLY on compound/descriptive names: combine two real, recognizable words into a single domain. Both words should be clearly identifiable. Examples: Mailchimp, Dropbox, Salesforce, Basecamp, Headspace. Be creative with unexpected word combinations!",
   },
   {
     id: "metaphor",
     label: "Metaphor/Evocative",
     matchesStructure: [],
-    count: 3,
+    count: 8,
     promptFragment:
-      "Focus ONLY on metaphorical/evocative names: use real words that evoke the right feeling or metaphor for the business. Examples: Slack, Notion, Compass, Bloom.",
+      "Focus ONLY on metaphorical/evocative names: use real words that evoke the right feeling or metaphor for the business. Examples: Slack, Notion, Compass, Bloom, Ripple, Ember, Atlas. Think outside the box!",
   },
   {
     id: "modified",
     label: "Modified Real Word",
     matchesStructure: ["suffix", "prefix"],
-    count: 3,
+    count: 8,
     promptFragment:
-      "Focus ONLY on modified real words: take real words and add suffixes (-ify, -ly, -io, -hub, -lab) or prefixes (re-, un-, co-, hyper-, meta-). Examples: Shopify, Grammarly, Calendly.",
+      "Focus ONLY on modified real words: take real words and add suffixes (-ify, -ly, -io, -hub, -lab, -er, -ful) or prefixes (re-, un-, co-, hyper-, meta-, super-). Examples: Shopify, Grammarly, Calendly, Superhuman. Get creative with modifications!",
   },
 ];
 
@@ -67,7 +67,9 @@ function buildPipelinePrompt(
 ): string {
   const tldList = tlds.length > 0 ? tlds.join(", ") : ".com, .io, .ai, .co, .net, .app, .nl, .dev, .xyz";
 
-  return `You are a world-class brand naming expert. Generate ${pipeline.count} domain name suggestions for this business idea: "${businessIdea}"
+  return `You are a world-class brand naming expert and creative wordsmith. Generate EXACTLY ${pipeline.count} unique domain name suggestions for this business idea: "${businessIdea}"
+
+IMPORTANT: You MUST generate exactly ${pipeline.count} suggestions. More is better than fewer. Be creative and diverse!
 
 CONTEXT (extracted from the business description):
 - Primary keywords: ${keywords.primaryKeywords.join(", ") || "N/A"}
@@ -153,12 +155,31 @@ export async function runPipelines(
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
-      max_tokens: 2000,
+      max_tokens: 4000,
       messages: [{ role: "user", content: prompt }],
     });
 
     const text = completion.choices[0]?.message?.content || "";
-    const parsed = JSON.parse(text);
+    let parsed;
+    try {
+      // Try direct parse first
+      parsed = JSON.parse(text);
+    } catch {
+      // Strip markdown fences and retry
+      const cleaned = text.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        // Last resort: extract JSON object with regex
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (match) {
+          parsed = JSON.parse(match[0]);
+        } else {
+          console.error(`[Pipeline ${pipeline.id}] Could not parse AI response:`, text.slice(0, 200));
+          return [];
+        }
+      }
+    }
     const suggestions: DomainSuggestion[] = (parsed.suggestions || []).map(
       (s: Record<string, unknown>) => ({
         domain: s.domain as string,

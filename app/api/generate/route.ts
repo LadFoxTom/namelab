@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
         while (availableResults.length < desiredCount && (Date.now() - startTime) < TIME_LIMIT_MS) {
           iteration++;
           const remainingNeeded = desiredCount - availableResults.length;
-          const generateCount = Math.min(Math.max(remainingNeeded * 3, 6), 30);
+          const generateCount = Math.min(Math.max(remainingNeeded * 4, 15), 50);
 
           console.log(`[Generate] Iteration ${iteration}: need ${remainingNeeded} more, generating ${generateCount} suggestions (${alreadyTried.length} tried, ${elapsedSec()}s elapsed)`);
 
