@@ -23,19 +23,8 @@ export async function POST(req: NextRequest) {
 
   await prisma.brandConcept.deleteMany({ where: { brandSessionId: sessionId } });
 
-  regenerateWithPreferences(sessionId, session.domainName, session.searchQuery, preferences).catch(console.error);
-
-  return NextResponse.json({ status: 'GENERATING' });
-}
-
-async function regenerateWithPreferences(
-  sessionId: string,
-  domainName: string,
-  searchQuery: string,
-  preferences: Partial<BrandSignals>
-) {
   try {
-    const signals = await extractBrandSignals(domainName, searchQuery, preferences);
+    const signals = await extractBrandSignals(session.domainName, session.searchQuery, preferences);
     await prisma.brandSession.update({
       where: { id: sessionId },
       data: { signals: signals as any, progress: 'generating_logos' },
@@ -61,11 +50,14 @@ async function regenerateWithPreferences(
       where: { id: sessionId },
       data: { status: 'READY', progress: 'ready' },
     });
+
+    return NextResponse.json({ status: 'READY' });
   } catch (error) {
     console.error('Brand refinement failed:', error);
     await prisma.brandSession.update({
       where: { id: sessionId },
       data: { status: 'FAILED', progress: null },
     });
+    return NextResponse.json({ status: 'FAILED' }, { status: 500 });
   }
 }

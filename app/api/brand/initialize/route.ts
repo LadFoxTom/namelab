@@ -25,17 +25,6 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  generateBrandPreview(session.id, domainName, searchQuery, preferences).catch(console.error);
-
-  return NextResponse.json({ sessionId: session.id, status: 'GENERATING' });
-}
-
-async function generateBrandPreview(
-  sessionId: string,
-  domainName: string,
-  searchQuery: string,
-  preferences?: { businessDescription?: string; tone?: string; colorPreference?: string; iconStyle?: string }
-) {
   try {
     const userPrefs: Partial<BrandSignals> = {};
     if (preferences?.tone) userPrefs.tone = preferences.tone as BrandSignals['tone'];
@@ -48,18 +37,17 @@ async function generateBrandPreview(
     const signals = await extractBrandSignals(domainName, description, Object.keys(userPrefs).length > 0 ? userPrefs : undefined);
 
     await prisma.brandSession.update({
-      where: { id: sessionId },
+      where: { id: session.id },
       data: { signals: signals as any, progress: 'generating_logos' },
     });
 
     const concepts = await generateLogoConcepts(signals);
 
-    // Store FAL URLs directly — no watermarking, no R2 upload for previews
     for (let i = 0; i < concepts.length; i++) {
       const concept = concepts[i];
       await prisma.brandConcept.create({
         data: {
-          brandSessionId: sessionId,
+          brandSessionId: session.id,
           style: concept.style,
           previewUrl: concept.imageUrl,
           originalUrl: concept.imageUrl,
@@ -70,14 +58,17 @@ async function generateBrandPreview(
     }
 
     await prisma.brandSession.update({
-      where: { id: sessionId },
+      where: { id: session.id },
       data: { status: 'READY', progress: 'ready' },
     });
+
+    return NextResponse.json({ sessionId: session.id, status: 'READY' });
   } catch (error) {
     console.error('Brand preview generation failed:', error);
     await prisma.brandSession.update({
-      where: { id: sessionId },
+      where: { id: session.id },
       data: { status: 'FAILED', progress: null },
     });
+    return NextResponse.json({ sessionId: session.id, status: 'FAILED' }, { status: 500 });
   }
 }

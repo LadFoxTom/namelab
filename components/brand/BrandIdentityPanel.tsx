@@ -25,8 +25,8 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
   const [progress, setProgress] = useState<string | null>(null);
 
   const startGeneration = useCallback(async (preferences: BrandPreferences) => {
-    setState('initializing');
-    setProgress(null);
+    setState('generating');
+    setProgress('extracting_signals');
     try {
       const res = await fetch('/api/brand/initialize', {
         method: 'POST',
@@ -41,7 +41,23 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
       });
       const data = await res.json();
       setSessionId(data.sessionId);
-      setState('generating');
+
+      if (!res.ok || data.status === 'FAILED') {
+        setState('failed');
+        return;
+      }
+
+      // Generation completes synchronously — fetch concepts directly
+      const statusRes = await fetch(`/api/brand/status?sessionId=${data.sessionId}`);
+      const statusData = await statusRes.json();
+      if (statusData.status === 'READY') {
+        setConcepts(statusData.concepts);
+        setSignals(statusData.signals);
+        setState('ready');
+      } else {
+        // Fallback to polling if not ready yet
+        setState('generating');
+      }
     } catch {
       setState('failed');
     }
