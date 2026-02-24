@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { LogoConceptGrid } from './LogoConceptGrid';
 import { BrandLoadingState } from './BrandLoadingState';
 import { BrandPricingModal } from './BrandPricingModal';
+import { BrandBriefForm, BrandPreferences } from './BrandBriefForm';
 
 interface BrandIdentityPanelProps {
   domainName: string;
@@ -12,7 +13,7 @@ interface BrandIdentityPanelProps {
   anonymousId: string;
 }
 
-type PanelState = 'idle' | 'initializing' | 'generating' | 'ready' | 'failed';
+type PanelState = 'idle' | 'briefing' | 'initializing' | 'generating' | 'ready' | 'failed';
 
 export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }: BrandIdentityPanelProps) {
   const [state, setState] = useState<PanelState>('idle');
@@ -21,14 +22,22 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
   const [signals, setSignals] = useState<any>(null);
   const [selectedConceptId, setSelectedConceptId] = useState<string | null>(null);
   const [showPricing, setShowPricing] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
 
-  const initializeBrandSession = useCallback(async () => {
+  const startGeneration = useCallback(async (preferences: BrandPreferences) => {
     setState('initializing');
+    setProgress(null);
     try {
       const res = await fetch('/api/brand/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domainName, tld, searchQuery, anonymousId }),
+        body: JSON.stringify({
+          domainName,
+          tld,
+          searchQuery: preferences.businessDescription,
+          anonymousId,
+          preferences,
+        }),
       });
       const data = await res.json();
       setSessionId(data.sessionId);
@@ -36,7 +45,7 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
     } catch {
       setState('failed');
     }
-  }, [domainName, tld, searchQuery, anonymousId]);
+  }, [domainName, tld, anonymousId]);
 
   useEffect(() => {
     if (!sessionId || state !== 'generating') return;
@@ -45,6 +54,10 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
       try {
         const res = await fetch(`/api/brand/status?sessionId=${sessionId}`);
         const data = await res.json();
+
+        if (data.progress) {
+          setProgress(data.progress);
+        }
 
         if (data.status === 'READY') {
           setConcepts(data.concepts);
@@ -78,7 +91,7 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
           AI-powered logo, color palette, social media kit — all matched to <span className="font-medium text-purple-600">{domainName}{tld}</span>
         </p>
         <button
-          onClick={initializeBrandSession}
+          onClick={() => setState('briefing')}
           className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-2.5 rounded-xl font-medium hover:shadow-lg hover:shadow-purple-200/50 hover:scale-105 transition-all duration-200"
         >
           Generate brand identity — Free preview
@@ -87,8 +100,20 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
     );
   }
 
+  if (state === 'briefing') {
+    return (
+      <BrandBriefForm
+        domainName={domainName}
+        tld={tld}
+        searchQuery={searchQuery}
+        onSubmit={startGeneration}
+        onBack={() => setState('idle')}
+      />
+    );
+  }
+
   if (state === 'initializing' || state === 'generating') {
-    return <BrandLoadingState />;
+    return <BrandLoadingState progress={progress} />;
   }
 
   if (state === 'failed') {
@@ -96,7 +121,7 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
       <div className="mt-8 p-6 bg-red-50 rounded-2xl text-center">
         <p className="text-red-600 text-sm">
           Brand generation failed.{' '}
-          <button onClick={initializeBrandSession} className="underline font-medium">Try again</button>
+          <button onClick={() => setState('briefing')} className="underline font-medium">Try again</button>
         </p>
       </div>
     );
@@ -126,7 +151,7 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
           Download files
         </button>
         <button
-          onClick={initializeBrandSession}
+          onClick={() => setState('briefing')}
           className="px-4 py-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors text-sm"
         >
           Regenerate

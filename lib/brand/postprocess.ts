@@ -7,7 +7,7 @@ export async function removeBackground(imageUrl: string): Promise<string> {
   const result = await fal.subscribe('fal-ai/imageutils/rembg', {
     input: { image_url: imageUrl },
   }) as any;
-  return result.image.url;
+  return result.data.image.url;
 }
 
 export async function upscaleImage(imageUrl: string): Promise<string> {
@@ -17,7 +17,7 @@ export async function upscaleImage(imageUrl: string): Promise<string> {
       scale: 2,
     },
   }) as any;
-  return result.image.url;
+  return result.data.image.url;
 }
 
 export async function downloadToBuffer(url: string): Promise<Buffer> {

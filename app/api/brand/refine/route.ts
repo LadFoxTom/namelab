@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { extractBrandSignals, BrandSignals } from '@/lib/brand/signals';
 import { generateLogoConcepts } from '@/lib/brand/generate';
-import { selectBestConcepts } from '@/lib/brand/select';
 import { applyWatermark } from '@/lib/brand/watermark';
 import { uploadToR2 } from '@/lib/brand/storage';
 
@@ -22,7 +21,7 @@ export async function POST(req: NextRequest) {
   // Mark as generating again
   await prisma.brandSession.update({
     where: { id: sessionId },
-    data: { status: 'GENERATING' },
+    data: { status: 'GENERATING', progress: 'extracting_signals' },
   });
 
   // Delete old concepts
@@ -44,14 +43,18 @@ async function regenerateWithPreferences(
     const signals = await extractBrandSignals(domainName, searchQuery, preferences);
     await prisma.brandSession.update({
       where: { id: sessionId },
-      data: { signals: signals as any },
+      data: { signals: signals as any, progress: 'generating_logos' },
     });
 
-    const candidates = await generateLogoConcepts(signals);
-    const selected = await selectBestConcepts(candidates);
+    const concepts = await generateLogoConcepts(signals);
 
-    for (let i = 0; i < selected.length; i++) {
-      const concept = selected[i];
+    await prisma.brandSession.update({
+      where: { id: sessionId },
+      data: { progress: 'processing_previews' },
+    });
+
+    for (let i = 0; i < concepts.length; i++) {
+      const concept = concepts[i];
 
       const originalRes = await fetch(concept.imageUrl);
       const originalBuffer = Buffer.from(await originalRes.arrayBuffer());
@@ -79,13 +82,13 @@ async function regenerateWithPreferences(
 
     await prisma.brandSession.update({
       where: { id: sessionId },
-      data: { status: 'READY' },
+      data: { status: 'READY', progress: 'ready' },
     });
   } catch (error) {
     console.error('Brand refinement failed:', error);
     await prisma.brandSession.update({
       where: { id: sessionId },
-      data: { status: 'FAILED' },
+      data: { status: 'FAILED', progress: null },
     });
   }
 }

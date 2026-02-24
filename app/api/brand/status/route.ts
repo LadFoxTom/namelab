@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     status: session.status,
+    progress: session.progress,
     signals: session.status === 'READY' ? session.signals : null,
     concepts: session.status === 'READY'
       ? session.concepts.map(c => ({

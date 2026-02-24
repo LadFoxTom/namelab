@@ -119,6 +119,7 @@ model BrandSession {
   userId      String?
   anonymousId String?
   signals     Json
+  progress    String?
   status      BrandStatus   @default(PENDING)
   concepts    BrandConcept[]
   purchases   BrandPurchase[]
