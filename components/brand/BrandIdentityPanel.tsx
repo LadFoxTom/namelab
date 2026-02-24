@@ -22,8 +22,10 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
   const [selectedConceptId, setSelectedConceptId] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [buildingKit, setBuildingKit] = useState(false);
+  const [kitError, setKitError] = useState<string | null>(null);
 
-  const handleDownload = useCallback(async () => {
+  const handleDownloadLogo = useCallback(async () => {
     const concept = concepts.find((c: any) => c.id === selectedConceptId);
     if (!concept) return;
     setDownloading(true);
@@ -39,12 +41,41 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      // Fallback: open in new tab
       window.open(concept.previewUrl, '_blank');
     } finally {
       setDownloading(false);
     }
   }, [concepts, selectedConceptId, domainName, tld]);
+
+  const handleDownloadKit = useCallback(async () => {
+    if (!sessionId || !selectedConceptId) return;
+    setBuildingKit(true);
+    setKitError(null);
+    try {
+      const res = await fetch('/api/brand/build-kit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, conceptId: selectedConceptId, tier: 'BRAND_KIT' }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(err.error || 'Build failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${domainName}${tld}-brand-kit.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setKitError(err.message || 'Failed to build brand kit');
+    } finally {
+      setBuildingKit(false);
+    }
+  }, [sessionId, selectedConceptId, domainName, tld]);
 
   const startGeneration = useCallback(async (preferences: BrandPreferences) => {
     setState('generating');
@@ -189,20 +220,45 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
         onSelect={setSelectedConceptId}
       />
 
-      <div className="mt-6 flex gap-3">
+      <div className="mt-6 space-y-3">
         <button
-          onClick={handleDownload}
-          disabled={!selectedConceptId || downloading}
-          className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-purple-200/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+          onClick={handleDownloadKit}
+          disabled={!selectedConceptId || buildingKit}
+          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-purple-200/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
         >
-          {downloading ? 'Downloading...' : 'Download logo'}
+          {buildingKit ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Building brand kit...
+            </span>
+          ) : 'Download brand kit'}
         </button>
-        <button
-          onClick={() => setState('briefing')}
-          className="px-4 py-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors text-sm"
-        >
-          Regenerate
-        </button>
+        {kitError && (
+          <p className="text-red-500 text-xs text-center">{kitError}</p>
+        )}
+        <div className="flex gap-3">
+          <button
+            onClick={handleDownloadLogo}
+            disabled={!selectedConceptId || downloading}
+            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+          >
+            {downloading ? 'Downloading...' : 'Download logo only'}
+          </button>
+          <button
+            onClick={() => setState('briefing')}
+            className="px-4 py-2.5 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors text-sm"
+          >
+            Regenerate
+          </button>
+        </div>
+        {buildingKit && (
+          <p className="text-xs text-gray-400 text-center">
+            Removing background, vectorizing, generating assets... This takes about 30 seconds.
+          </p>
+        )}
       </div>
     </div>
   );
