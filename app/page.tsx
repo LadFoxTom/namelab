@@ -1,20 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import ResultsSection from "@/components/ResultsSection";
 import FeaturesSection from "@/components/FeaturesSection";
 import Footer from "@/components/Footer";
-import { DomainResult, GenerateResponse, ToneFilter, StructureFilter, LengthPreset } from "@/lib/types";
+import { DomainResult, GenerateResponse, ToneFilter, StructureFilter, LengthPreset, StreamEvent } from "@/lib/types";
 
 const ALL_TLDS = [".com", ".io", ".ai", ".co", ".net", ".app", ".nl", ".dev", ".xyz"];
 const SESSION_KEY = "sparkdomain-results";
 
+export interface SearchProgress {
+  found: number;
+  target: number;
+  elapsed: number;
+  timeLimit: number;
+  iteration: number;
+}
+
 /** Returns true when the input looks like a domain name rather than a business description */
 function looksLikeDomain(input: string): boolean {
   const trimmed = input.trim();
-  // A domain-like input has no spaces and is a plausible domain (letters, digits, hyphens, optionally a dot+tld)
   return trimmed.length > 0 && !/\s/.test(trimmed) && /^[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})?$/.test(trimmed);
 }
 
@@ -48,8 +55,12 @@ export default function Home() {
   const [tones, setTones] = useState<ToneFilter[]>([]);
   const [structures, setStructures] = useState<StructureFilter[]>([]);
   const [lengthPreset, setLengthPreset] = useState<LengthPreset>("sweet-spot");
+  const [minBrandScore, setMinBrandScore] = useState(0);
+  const [minLinguisticScore, setMinLinguisticScore] = useState(0);
+  const [minSeoScore, setMinSeoScore] = useState(0);
+  const [searchProgress, setSearchProgress] = useState<SearchProgress | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Restore results from sessionStorage on mount (e.g. after browser back)
   useEffect(() => {
     const saved = loadSession();
     if (saved && saved.domains.length > 0) {
@@ -64,73 +75,150 @@ export default function Home() {
   const isDomainMode = looksLikeDomain(prompt);
 
   const fetchDomains = async (input: string) => {
+    // Abort any existing stream
+    if (abortRef.current) abortRef.current.abort();
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+
     setLoading(true);
     setError(null);
+    setSearchProgress(null);
 
     try {
       const isDomain = looksLikeDomain(input);
-      const url = isDomain ? "/api/check-domain" : "/api/generate";
-      const payload = isDomain
-        ? { domain: input, tlds: selectedTlds }
-        : {
-            businessIdea: input,
-            count: domainCount,
-            tlds: selectedTlds,
-            includeWords: includeWords.length > 0 ? includeWords : undefined,
-            excludeWords: excludeWords.length > 0 ? excludeWords : undefined,
-            minLength: lengthPreset === "custom" ? (minLength || undefined) : undefined,
-            maxLength: lengthPreset === "custom" ? (maxLength || undefined) : undefined,
-            tones: tones.length > 0 ? tones : undefined,
-            structures: structures.length > 0 ? structures : undefined,
-            lengthPreset: lengthPreset !== "sweet-spot" ? lengthPreset : undefined,
-          };
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data: GenerateResponse = await response.json();
-
-      if (!response.ok) {
-        setError(data.message || "Something went wrong. Please try again.");
+      if (isDomain) {
+        // Domain check mode — no streaming needed
+        const response = await fetch("/api/check-domain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain: input, tlds: selectedTlds }),
+          signal: abortController.signal,
+        });
+        const data: GenerateResponse = await response.json();
+        if (!response.ok) {
+          setError(data.message || "Something went wrong. Please try again.");
+          return;
+        }
+        if (data.success && data.results) {
+          setDomains(data.results);
+          setHasSearched(true);
+          try {
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ prompt: input, domains: data.results, domainCount, selectedTlds }));
+          } catch { /* ignore */ }
+          setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 100);
+        }
         return;
       }
 
-      if (data.success && data.results) {
-        setDomains(data.results);
-        setHasSearched(true);
+      // Streaming generation mode
+      setDomains([]);
+      setHasSearched(true);
 
-        // Persist to sessionStorage so results survive navigation
-        try {
-          sessionStorage.setItem(
-            SESSION_KEY,
-            JSON.stringify({ prompt: input, domains: data.results, domainCount, selectedTlds })
-          );
-        } catch { /* quota exceeded — ignore */ }
+      const payload = {
+        businessIdea: input,
+        count: domainCount,
+        tlds: selectedTlds,
+        includeWords: includeWords.length > 0 ? includeWords : undefined,
+        excludeWords: excludeWords.length > 0 ? excludeWords : undefined,
+        minLength: lengthPreset === "custom" ? (minLength || undefined) : undefined,
+        maxLength: lengthPreset === "custom" ? (maxLength || undefined) : undefined,
+        tones: tones.length > 0 ? tones : undefined,
+        structures: structures.length > 0 ? structures : undefined,
+        lengthPreset: lengthPreset !== "sweet-spot" ? lengthPreset : undefined,
+        minBrandScore: minBrandScore > 0 ? minBrandScore : undefined,
+        minLinguisticScore: minLinguisticScore > 0 ? minLinguisticScore : undefined,
+        minSeoScore: minSeoScore > 0 ? minSeoScore : undefined,
+      };
 
-        setTimeout(() => {
-          document
-            .getElementById("results")
-            ?.scrollIntoView({ behavior: "smooth" });
-        }, 100);
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: abortController.signal,
+      });
+
+      if (!response.body) {
+        setError("Streaming not supported.");
+        return;
       }
-    } catch {
+
+      // Scroll to results area
+      setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 100);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const collectedDomains: DomainResult[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const event: StreamEvent = JSON.parse(jsonStr);
+
+            if (event.type === "domain" && event.domain) {
+              collectedDomains.push(event.domain);
+              setDomains([...collectedDomains]);
+            } else if (event.type === "progress") {
+              setSearchProgress({
+                found: event.found || 0,
+                target: event.target || domainCount,
+                elapsed: event.elapsed || 0,
+                timeLimit: event.timeLimit || 180,
+                iteration: event.iteration || 0,
+              });
+            } else if (event.type === "done") {
+              setSearchProgress({
+                found: event.found || collectedDomains.length,
+                target: event.target || domainCount,
+                elapsed: event.elapsed || 0,
+                timeLimit: event.timeLimit || 180,
+                iteration: event.iteration || 0,
+              });
+            } else if (event.type === "error") {
+              setError(event.message || "Something went wrong. Please try again.");
+            }
+          } catch {
+            // Malformed SSE line, skip
+          }
+        }
+      }
+
+      // Persist final results
+      try {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify({ prompt: input, domains: collectedDomains, domainCount, selectedTlds }));
+      } catch { /* ignore */ }
+
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);
+      abortRef.current = null;
     }
   };
 
   const generateDomains = async () => {
     if (!prompt.trim() || loading) return;
     setHasSearched(false);
+    setSearchProgress(null);
     await fetchDomains(prompt);
   };
 
   const handleRegenerate = () => {
     if (!prompt.trim() || loading) return;
+    setSearchProgress(null);
     fetchDomains(prompt);
   };
 
@@ -170,6 +258,12 @@ export default function Home() {
           setStructures={setStructures}
           lengthPreset={lengthPreset}
           setLengthPreset={setLengthPreset}
+          minBrandScore={minBrandScore}
+          setMinBrandScore={setMinBrandScore}
+          minLinguisticScore={minLinguisticScore}
+          setMinLinguisticScore={setMinLinguisticScore}
+          minSeoScore={minSeoScore}
+          setMinSeoScore={setMinSeoScore}
         />
 
         {error && (
@@ -180,19 +274,20 @@ export default function Home() {
           </div>
         )}
 
-        {hasSearched && domains.length > 0 && (
+        {(hasSearched || loading) && (domains.length > 0 || loading) && (
           <ResultsSection
             domains={domains}
             loading={loading}
             onRegenerate={handleRegenerate}
             onMoreLikeThis={handleMoreLikeThis}
+            searchProgress={searchProgress}
           />
         )}
 
-        {hasSearched && domains.length === 0 && !error && (
+        {hasSearched && !loading && domains.length === 0 && !error && (
           <div className="max-w-2xl mx-auto px-6 py-24 text-center">
             <p className="text-gray-500 text-lg font-light">
-              No available domains found. Try a different business idea.
+              No available domains found. Try a different business idea or lower your score minimums.
             </p>
           </div>
         )}

@@ -62,6 +62,20 @@ export interface GenerateRequest {
   tones?: ToneFilter[];
   structures?: StructureFilter[];
   lengthPreset?: LengthPreset;
+  minBrandScore?: number;
+  minLinguisticScore?: number;
+  minSeoScore?: number;
+}
+
+export interface StreamEvent {
+  type: 'domain' | 'progress' | 'done' | 'error';
+  domain?: DomainResult;
+  found?: number;
+  target?: number;
+  elapsed?: number;
+  timeLimit?: number;
+  iteration?: number;
+  message?: string;
 }
 
 export interface GenerateResponse {

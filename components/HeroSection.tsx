@@ -28,6 +28,12 @@ interface HeroSectionProps {
   setStructures: (value: StructureFilter[]) => void;
   lengthPreset: LengthPreset;
   setLengthPreset: (value: LengthPreset) => void;
+  minBrandScore: number;
+  setMinBrandScore: (value: number) => void;
+  minLinguisticScore: number;
+  setMinLinguisticScore: (value: number) => void;
+  minSeoScore: number;
+  setMinSeoScore: (value: number) => void;
 }
 
 const textGradientStyle = {
@@ -87,6 +93,12 @@ export default function HeroSection({
   setStructures,
   lengthPreset,
   setLengthPreset,
+  minBrandScore,
+  setMinBrandScore,
+  minLinguisticScore,
+  setMinLinguisticScore,
+  minSeoScore,
+  setMinSeoScore,
 }: HeroSectionProps) {
   const [tldDropdownOpen, setTldDropdownOpen] = useState(false);
   const [includeInput, setIncludeInput] = useState("");
@@ -148,7 +160,7 @@ export default function HeroSection({
   };
 
   const allSelected = selectedTlds.length === allTlds.length;
-  const hasActiveFilters = tones.length > 0 || structures.length > 0 || includeWords.length > 0 || excludeWords.length > 0 || lengthPreset !== "sweet-spot";
+  const hasActiveFilters = tones.length > 0 || structures.length > 0 || includeWords.length > 0 || excludeWords.length > 0 || lengthPreset !== "sweet-spot" || minBrandScore > 0 || minLinguisticScore > 0 || minSeoScore > 0;
 
   return (
     <section className="relative min-h-[70vh] sm:min-h-[85vh] flex flex-col items-center justify-center px-4 sm:px-6 md:px-12 py-12 sm:py-20 bg-gradient-to-b from-gray-50 to-white overflow-x-clip">
@@ -420,6 +432,38 @@ export default function HeroSection({
           {/* Filter panel */}
           {!isDomainMode && keywordsOpen && (
             <div className="w-full max-w-xl mx-auto mt-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm animate-slide-up space-y-4">
+              {/* Minimum scores */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
+                  Minimum Scores
+                </label>
+                <div className="space-y-2.5">
+                  {([
+                    { label: "Brand", value: minBrandScore, setter: setMinBrandScore },
+                    { label: "Linguistic", value: minLinguisticScore, setter: setMinLinguisticScore },
+                    { label: "SEO", value: minSeoScore, setter: setMinSeoScore },
+                  ] as const).map((item) => (
+                    <div key={item.label} className="flex items-center gap-3">
+                      <span className={`text-xs w-16 shrink-0 ${item.value > 0 ? "text-purple-600 font-medium" : "text-gray-400"}`}>
+                        {item.label}
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={item.value}
+                        onChange={(e) => item.setter(parseInt(e.target.value))}
+                        className="flex-1 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer accent-purple-500"
+                      />
+                      <span className={`text-xs w-8 text-right font-mono ${item.value > 0 ? "text-purple-600 font-medium" : "text-gray-300"}`}>
+                        {item.value || "—"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Tone selector */}
               <div>
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">

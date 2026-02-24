@@ -17,11 +17,26 @@ const TLD_FILTERS = [
 
 type SortOption = "score" | "price" | "name";
 
+interface SearchProgress {
+  found: number;
+  target: number;
+  elapsed: number;
+  timeLimit: number;
+  iteration: number;
+}
+
 interface ResultsSectionProps {
   domains: DomainResult[];
   loading: boolean;
   onRegenerate: () => void;
   onMoreLikeThis: (domain: DomainResult) => void;
+  searchProgress?: SearchProgress | null;
+}
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export default function ResultsSection({
@@ -29,6 +44,7 @@ export default function ResultsSection({
   loading,
   onRegenerate,
   onMoreLikeThis,
+  searchProgress,
 }: ResultsSectionProps) {
   const [activeTld, setActiveTld] = useState("all");
   const [sortBy, setSortBy] = useState<SortOption>("score");
@@ -64,6 +80,33 @@ export default function ResultsSection({
       id="results"
       className="max-w-[1440px] mx-auto px-4 sm:px-6 md:px-12 py-12 sm:py-24 min-h-screen"
     >
+      {/* Live search progress */}
+      {loading && searchProgress && (
+        <div className="mb-6 sm:mb-8 p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 rounded-2xl animate-slide-up">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-500"></span>
+              </span>
+              <span className="text-sm font-medium text-gray-700">
+                Found {searchProgress.found} of {searchProgress.target} domains
+              </span>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <span>Round {searchProgress.iteration}</span>
+              <span className="font-mono">{formatTime(searchProgress.elapsed)} / {formatTime(searchProgress.timeLimit)}</span>
+            </div>
+          </div>
+          <div className="w-full h-2 bg-white/80 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-purple-400 to-pink-400 transition-all duration-500 ease-out"
+              style={{ width: `${Math.min((searchProgress.found / searchProgress.target) * 100, 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row items-start md:items-end justify-between mb-6 sm:mb-10 gap-3 sm:gap-6">
         <div>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-gray-900 mb-2">
