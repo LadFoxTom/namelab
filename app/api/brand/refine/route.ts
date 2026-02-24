@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { extractBrandSignals, BrandSignals } from '@/lib/brand/signals';
 import { generateLogoConcepts } from '@/lib/brand/generate';
+import { pregeneratePalette } from '@/lib/brand/palettePregen';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -25,12 +26,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const signals = await extractBrandSignals(session.domainName, session.searchQuery, preferences);
+    const palette = pregeneratePalette(signals);
+
     await prisma.brandSession.update({
       where: { id: sessionId },
       data: { signals: signals as any, progress: 'generating_logos' },
     });
 
-    const concepts = await generateLogoConcepts(signals);
+    const concepts = await generateLogoConcepts(signals, palette);
 
     for (let i = 0; i < concepts.length; i++) {
       const concept = concepts[i];
@@ -42,6 +45,10 @@ export async function POST(req: NextRequest) {
           originalUrl: concept.imageUrl,
           generationIndex: i,
           promptUsed: concept.prompt,
+          score: concept.score,
+          evaluationFlags: concept.evaluationFlags,
+          attemptCount: concept.attemptCount,
+          passedEvaluation: concept.passedEvaluation,
         },
       });
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { extractBrandSignals, BrandSignals } from '@/lib/brand/signals';
 import { generateLogoConcepts } from '@/lib/brand/generate';
+import { pregeneratePalette } from '@/lib/brand/palettePregen';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -36,12 +37,15 @@ export async function POST(req: NextRequest) {
     const description = preferences?.businessDescription || searchQuery;
     const signals = await extractBrandSignals(domainName, description, Object.keys(userPrefs).length > 0 ? userPrefs : undefined);
 
+    // Pre-generate palette before image generation so hex colors go into prompts
+    const palette = pregeneratePalette(signals);
+
     await prisma.brandSession.update({
       where: { id: session.id },
       data: { signals: signals as any, progress: 'generating_logos' },
     });
 
-    const concepts = await generateLogoConcepts(signals);
+    const concepts = await generateLogoConcepts(signals, palette);
 
     for (let i = 0; i < concepts.length; i++) {
       const concept = concepts[i];
@@ -53,6 +57,10 @@ export async function POST(req: NextRequest) {
           originalUrl: concept.imageUrl,
           generationIndex: i,
           promptUsed: concept.prompt,
+          score: concept.score,
+          evaluationFlags: concept.evaluationFlags,
+          attemptCount: concept.attemptCount,
+          passedEvaluation: concept.passedEvaluation,
         },
       });
     }

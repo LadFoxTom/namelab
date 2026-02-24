@@ -140,6 +140,10 @@ model BrandConcept {
   isSelected      Boolean      @default(false)
   generationIndex Int
   promptUsed      String       @db.Text
+  score           Int          @default(0)
+  evaluationFlags String[]     @default([])
+  attemptCount    Int          @default(1)
+  passedEvaluation Boolean     @default(false)
   createdAt       DateTime     @default(now())
 
   @@index([brandSessionId])
