@@ -6,7 +6,9 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import TldVariationRow from "@/components/TldVariationRow";
+import LoginModal from "@/components/LoginModal";
 import { TldVariation, TldCheckResponse } from "@/lib/types";
+import { useSavedDomains } from "@/components/SavedDomainsContext";
 
 function ScoreBar({
   label,
@@ -85,6 +87,18 @@ export default function DomainDetailPage() {
   const [loading, setLoading] = useState(true);
   const [variations, setVariations] = useState<TldVariation[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showLogin, setShowLogin] = useState(false);
+  const { checkSaved } = useSavedDomains();
+
+  const domainMeta = reasoning && namingStrategy && hasScores
+    ? {
+        reasoning: reasoning!,
+        namingStrategy: namingStrategy!,
+        brandabilityScore: brandScore!,
+        memorabilityScore: memoryScore!,
+        seoScore: seoScore!,
+      }
+    : undefined;
 
   useEffect(() => {
     async function fetchVariations() {
@@ -102,6 +116,8 @@ export default function DomainDetailPage() {
             return tldOrder.indexOf(a.tld) - tldOrder.indexOf(b.tld);
           });
           setVariations(sorted);
+          // Check saved status for all domains
+          checkSaved(sorted.map((v) => v.domain));
         } else {
           setError(data.error || "Failed to check TLD variations");
         }
@@ -245,6 +261,8 @@ export default function DomainDetailPage() {
                   key={variation.domain}
                   variation={variation}
                   isOriginal={originalTld === variation.tld}
+                  domainMeta={domainMeta}
+                  onLoginPrompt={() => setShowLogin(true)}
                 />
               ))}
             </div>
@@ -287,6 +305,7 @@ export default function DomainDetailPage() {
       </main>
 
       <Footer />
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
     </div>
   );
 }

@@ -1,13 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { TldVariation } from "@/lib/types";
+import { TldVariation, DomainResult } from "@/lib/types";
 import { useCurrency } from "./CurrencyContext";
+import { useSavedDomains } from "./SavedDomainsContext";
+import { useAuth } from "./AuthContext";
 import { formatPrice } from "@/lib/currency";
 
 interface TldVariationRowProps {
   variation: TldVariation;
   isOriginal?: boolean;
+  domainMeta?: {
+    reasoning: string;
+    namingStrategy: string;
+    brandabilityScore: number;
+    memorabilityScore: number;
+    seoScore: number;
+  };
+  onLoginPrompt?: () => void;
 }
 
 function getRegistrarLabel(registrar: string): string {
@@ -48,9 +58,35 @@ async function trackClick(
 export default function TldVariationRow({
   variation,
   isOriginal,
+  domainMeta,
+  onLoginPrompt,
 }: TldVariationRowProps) {
   const [expanded, setExpanded] = useState(false);
   const { currency } = useCurrency();
+  const { isSaved, toggleSave } = useSavedDomains();
+  const { user } = useAuth();
+
+  const saved = isSaved(variation.domain);
+
+  const handleSave = () => {
+    if (!user) {
+      onLoginPrompt?.();
+      return;
+    }
+    if (!domainMeta) return;
+    const domainResult: DomainResult = {
+      id: variation.domain,
+      domain: variation.domain,
+      reasoning: domainMeta.reasoning,
+      namingStrategy: domainMeta.namingStrategy,
+      brandabilityScore: domainMeta.brandabilityScore,
+      memorabilityScore: domainMeta.memorabilityScore,
+      seoScore: domainMeta.seoScore,
+      providers: variation.providers,
+      cheapestProvider: variation.cheapestProvider,
+    };
+    toggleSave(domainResult);
+  };
 
   return (
     <div
@@ -81,35 +117,54 @@ export default function TldVariationRow({
           )}
         </div>
 
-        {variation.available && variation.cheapestProvider ? (
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            <div className="text-right">
-              <span className="text-sm sm:text-lg font-light text-gray-900">
-                {formatPrice(variation.cheapestProvider.price, currency)}
-              </span>
-              <span className="text-[10px] sm:text-xs text-gray-400">/yr</span>
-              <div className="text-[10px] text-gray-400 hidden sm:block">
-                via {getRegistrarLabel(variation.cheapestProvider.registrar)}
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          {variation.available && variation.cheapestProvider ? (
+            <>
+              <div className="text-right">
+                <span className="text-sm sm:text-lg font-light text-gray-900">
+                  {formatPrice(variation.cheapestProvider.price, currency)}
+                </span>
+                <span className="text-[10px] sm:text-xs text-gray-400">/yr</span>
+                <div className="text-[10px] text-gray-400 hidden sm:block">
+                  via {getRegistrarLabel(variation.cheapestProvider.registrar)}
+                </div>
               </div>
-            </div>
+              <button
+                onClick={() =>
+                  trackClick(
+                    variation.domain,
+                    variation.cheapestProvider!.registrar,
+                    variation.cheapestProvider!.affiliateUrl
+                  )
+                }
+                className="bg-black text-white rounded-full px-3 sm:px-5 py-2 text-xs sm:text-sm font-medium hover:scale-105 transition-transform"
+              >
+                Buy
+              </button>
+            </>
+          ) : !variation.available ? (
+            <span className="text-xs sm:text-sm text-gray-400 italic truncate max-w-[100px] sm:max-w-[200px]">
+              {variation.siteTitle || "In use"}
+            </span>
+          ) : null}
+          {domainMeta && (
             <button
-              onClick={() =>
-                trackClick(
-                  variation.domain,
-                  variation.cheapestProvider!.registrar,
-                  variation.cheapestProvider!.affiliateUrl
-                )
-              }
-              className="bg-black text-white rounded-full px-3 sm:px-5 py-2 text-xs sm:text-sm font-medium hover:scale-105 transition-transform"
+              onClick={handleSave}
+              className="p-1.5 rounded-full hover:bg-purple-50 transition-colors"
+              title={saved ? "Remove from saved" : "Save domain"}
             >
-              Buy
+              {saved ? (
+                <svg className="w-5 h-5 text-purple-500" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 text-gray-300 hover:text-purple-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              )}
             </button>
-          </div>
-        ) : !variation.available ? (
-          <div className="text-xs sm:text-sm text-gray-400 italic truncate max-w-[100px] sm:max-w-[200px] shrink-0">
-            {variation.siteTitle || "In use"}
-          </div>
-        ) : null}
+          )}
+        </div>
       </div>
 
       {/* Expandable registrar comparison */}
