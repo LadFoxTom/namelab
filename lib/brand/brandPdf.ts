@@ -1,7 +1,7 @@
 import { PDFDocument, rgb, PageSizes } from 'pdf-lib';
-import * as fontkit from '@pdf-lib/fontkit';
-import * as path from 'path';
-import * as fs from 'fs';
+import fontkitModule from '@pdf-lib/fontkit';
+import path from 'path';
+import fs from 'fs';
 import { BrandPalette } from './palette';
 import { FontPairing } from './typography';
 import { BrandSignals } from './signals';
@@ -25,7 +25,7 @@ export async function generateBrandPdf(
   fonts: FontPairing
 ): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create();
-  pdfDoc.registerFontkit(fontkit);
+  pdfDoc.registerFontkit(fontkitModule as any);
 
   // Load embedded fonts
   const fontDir = path.join(process.cwd(), 'lib/brand/fonts');
