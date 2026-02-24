@@ -82,6 +82,7 @@ export function buildDomainResult(
     brandabilityScore: suggestion.brandabilityScore,
     memorabilityScore: suggestion.memorabilityScore,
     seoScore: suggestion.seoScore,
+    lqsScore: suggestion.lqsScore,
     providers: affiliateProviders,
     cheapestProvider: cheapest
       ? {

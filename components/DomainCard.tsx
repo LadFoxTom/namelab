@@ -64,6 +64,18 @@ function getRegistrarInitial(registrar: string): string {
   return initials[registrar] || "?";
 }
 
+function getRiskColor(risk: string): string {
+  if (risk === "clear") return "bg-green-50 text-green-700 border-green-200";
+  if (risk === "caution") return "bg-yellow-50 text-yellow-700 border-yellow-200";
+  return "bg-red-50 text-red-700 border-red-200";
+}
+
+function getRiskLabel(risk: string): string {
+  if (risk === "clear") return "Clear";
+  if (risk === "caution") return "Caution";
+  return "Conflict";
+}
+
 async function trackClick(
   domain: string,
   registrar: string,
@@ -83,17 +95,40 @@ async function trackClick(
 
 export default function DomainCard({ domain, index, onMoreLikeThis }: DomainCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [trademarkStatus, setTrademarkStatus] = useState<"idle" | "loading" | "done">("idle");
+  const [trademarkRisk, setTrademarkRisk] = useState<string | null>(null);
   const { currency } = useCurrency();
 
-  const hasScores = domain.brandabilityScore > 0 || domain.memorabilityScore > 0 || domain.seoScore > 0;
+  const linguisticScore = domain.lqsScore ?? domain.memorabilityScore;
+  const hasScores = domain.brandabilityScore > 0 || linguisticScore > 0 || domain.seoScore > 0;
   const avgScore = hasScores
-    ? Math.round((domain.brandabilityScore + domain.memorabilityScore + domain.seoScore) / 3)
+    ? Math.round((domain.brandabilityScore + linguisticScore + domain.seoScore) / 3)
     : 0;
   const scoreColor = getScoreColor(avgScore);
   const tld = "." + domain.domain.split(".").pop()?.toUpperCase();
   const cheapest = domain.cheapestProvider;
   const baseName = domain.domain.split(".")[0];
-  const detailUrl = `/domain/${encodeURIComponent(baseName)}?tld=.${domain.domain.split(".").pop()}&brand=${domain.brandabilityScore}&memory=${domain.memorabilityScore}&seo=${domain.seoScore}&strategy=${encodeURIComponent(domain.namingStrategy)}&reasoning=${encodeURIComponent(domain.reasoning)}`;
+  const detailUrl = `/domain/${encodeURIComponent(baseName)}?tld=.${domain.domain.split(".").pop()}&brand=${domain.brandabilityScore}&memory=${linguisticScore}&seo=${domain.seoScore}&strategy=${encodeURIComponent(domain.namingStrategy)}&reasoning=${encodeURIComponent(domain.reasoning)}`;
+
+  const checkTrademark = async () => {
+    setTrademarkStatus("loading");
+    try {
+      const res = await fetch("/api/trademark", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: domain.domain }),
+      });
+      const data = await res.json();
+      if (data.success && data.result) {
+        setTrademarkRisk(data.result.risk);
+      } else {
+        setTrademarkRisk("error");
+      }
+    } catch {
+      setTrademarkRisk("error");
+    }
+    setTrademarkStatus("done");
+  };
 
   return (
     <div
@@ -161,8 +196,8 @@ export default function DomainCard({ domain, index, onMoreLikeThis }: DomainCard
               icon={<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>}
             />
             <ScoreBar
-              label="Memory"
-              score={domain.memorabilityScore}
+              label="Linguistic"
+              score={linguisticScore}
               icon={<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>}
             />
             <ScoreBar
@@ -175,6 +210,43 @@ export default function DomainCard({ domain, index, onMoreLikeThis }: DomainCard
                 How are scores calculated?
               </Link>
             </div>
+          </div>
+        )}
+
+        {/* Trademark check */}
+        {hasScores && (
+          <div className="mb-4">
+            {trademarkStatus === "idle" && (
+              <button
+                onClick={checkTrademark}
+                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-purple-600 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                Check Trademark
+              </button>
+            )}
+            {trademarkStatus === "loading" && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Checking...
+              </div>
+            )}
+            {trademarkStatus === "done" && trademarkRisk && trademarkRisk !== "error" && (
+              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium uppercase tracking-wider border ${getRiskColor(trademarkRisk)}`}>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                Trademark: {getRiskLabel(trademarkRisk)}
+              </span>
+            )}
+            {trademarkStatus === "done" && trademarkRisk === "error" && (
+              <span className="text-[10px] text-gray-400">Trademark check unavailable</span>
+            )}
           </div>
         )}
 

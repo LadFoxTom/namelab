@@ -1,3 +1,7 @@
+export type ToneFilter = 'playful' | 'professional' | 'bold' | 'calm' | 'techy';
+export type StructureFilter = 'invented' | 'compound' | 'portmanteau' | 'suffix' | 'prefix';
+export type LengthPreset = 'short' | 'sweet-spot' | 'descriptive' | 'custom';
+
 export interface DomainSuggestion {
   domain: string;
   namingStrategy: string;
@@ -5,6 +9,7 @@ export interface DomainSuggestion {
   brandabilityScore: number;
   memorabilityScore: number;
   seoScore: number;
+  lqsScore?: number;
 }
 
 export interface ClaudeResponse {
@@ -36,6 +41,7 @@ export interface DomainResult {
   brandabilityScore: number;
   memorabilityScore: number;
   seoScore: number;
+  lqsScore?: number;
   providers: AffiliateProvider[];
   cheapestProvider: {
     registrar: string;
@@ -53,6 +59,9 @@ export interface GenerateRequest {
   excludeWords?: string[];
   minLength?: number;
   maxLength?: number;
+  tones?: ToneFilter[];
+  structures?: StructureFilter[];
+  lengthPreset?: LengthPreset;
 }
 
 export interface GenerateResponse {

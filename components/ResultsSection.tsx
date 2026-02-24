@@ -40,8 +40,10 @@ export default function ResultsSection({
     })
     .sort((a, b) => {
       if (sortBy === "score") {
-        const scoreA = (a.brandabilityScore + a.memorabilityScore + a.seoScore) / 3;
-        const scoreB = (b.brandabilityScore + b.memorabilityScore + b.seoScore) / 3;
+        const lqsA = a.lqsScore ?? a.memorabilityScore;
+        const lqsB = b.lqsScore ?? b.memorabilityScore;
+        const scoreA = (a.brandabilityScore + lqsA + a.seoScore) / 3;
+        const scoreB = (b.brandabilityScore + lqsB + b.seoScore) / 3;
         return scoreB - scoreA;
       }
       if (sortBy === "price") {

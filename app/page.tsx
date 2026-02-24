@@ -6,7 +6,7 @@ import HeroSection from "@/components/HeroSection";
 import ResultsSection from "@/components/ResultsSection";
 import FeaturesSection from "@/components/FeaturesSection";
 import Footer from "@/components/Footer";
-import { DomainResult, GenerateResponse } from "@/lib/types";
+import { DomainResult, GenerateResponse, ToneFilter, StructureFilter, LengthPreset } from "@/lib/types";
 
 const ALL_TLDS = [".com", ".io", ".ai", ".co", ".net", ".app", ".nl", ".dev", ".xyz"];
 const SESSION_KEY = "sparkdomain-results";
@@ -45,6 +45,9 @@ export default function Home() {
   const [excludeWords, setExcludeWords] = useState<string[]>([]);
   const [minLength, setMinLength] = useState<number | undefined>(undefined);
   const [maxLength, setMaxLength] = useState<number | undefined>(undefined);
+  const [tones, setTones] = useState<ToneFilter[]>([]);
+  const [structures, setStructures] = useState<StructureFilter[]>([]);
+  const [lengthPreset, setLengthPreset] = useState<LengthPreset>("sweet-spot");
 
   // Restore results from sessionStorage on mount (e.g. after browser back)
   useEffect(() => {
@@ -75,8 +78,11 @@ export default function Home() {
             tlds: selectedTlds,
             includeWords: includeWords.length > 0 ? includeWords : undefined,
             excludeWords: excludeWords.length > 0 ? excludeWords : undefined,
-            minLength: minLength || undefined,
-            maxLength: maxLength || undefined,
+            minLength: lengthPreset === "custom" ? (minLength || undefined) : undefined,
+            maxLength: lengthPreset === "custom" ? (maxLength || undefined) : undefined,
+            tones: tones.length > 0 ? tones : undefined,
+            structures: structures.length > 0 ? structures : undefined,
+            lengthPreset: lengthPreset !== "sweet-spot" ? lengthPreset : undefined,
           };
 
       const response = await fetch(url, {
@@ -158,6 +164,12 @@ export default function Home() {
           maxLength={maxLength}
           setMaxLength={setMaxLength}
           isDomainMode={isDomainMode}
+          tones={tones}
+          setTones={setTones}
+          structures={structures}
+          setStructures={setStructures}
+          lengthPreset={lengthPreset}
+          setLengthPreset={setLengthPreset}
         />
 
         {error && (

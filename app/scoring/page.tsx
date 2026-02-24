@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "Scoring System — Sparkdomain",
-  description: "How we evaluate domain names across brandability, memorability, and SEO potential.",
+  description: "How we evaluate domain names across brandability, linguistic quality, and SEO potential.",
 };
 
 function ScoreExample({ score, label, color }: { score: string; label: string; color: string }) {
@@ -118,7 +118,7 @@ export default function ScoringPage() {
 
           <div className="h-px bg-gray-100" />
 
-          {/* Memorability */}
+          {/* Linguistic Quality Score (LQS) */}
           <section className="group">
             <div className="flex items-start gap-4 mb-4">
               <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500 shrink-0 group-hover:scale-110 transition-transform">
@@ -127,34 +127,42 @@ export default function ScoringPage() {
                 </svg>
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-1">Memorability</h2>
-                <p className="text-gray-400 text-sm font-light">How easy is it to remember, spell, and share?</p>
+                <h2 className="text-xl font-semibold text-gray-900 mb-1">Linguistic Quality</h2>
+                <p className="text-gray-400 text-sm font-light">Code-computed score based on 6 linguistic sub-signals</p>
               </div>
             </div>
             <div className="ml-14 space-y-4">
               <p className="text-gray-600 text-sm leading-relaxed">
-                Memorability captures how easily someone can recall and correctly type the domain after hearing it once.
-                Short, phonetically simple names with obvious spelling score highest. Longer names with unusual
-                letter combinations or ambiguous pronunciation score lower.
+                Unlike other scores, the Linguistic Quality Score (LQS) is computed algorithmically from the
+                domain name itself — no AI subjectivity. It analyzes how easy the name is to remember, spell,
+                and pronounce based on measurable linguistic properties.
               </p>
               <div className="bg-gray-50 rounded-2xl p-5 space-y-3">
-                <h4 className="text-xs font-medium text-gray-900 uppercase tracking-wider">What we evaluate</h4>
+                <h4 className="text-xs font-medium text-gray-900 uppercase tracking-wider">6 sub-signals</h4>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li className="flex items-start gap-2">
                     <span className="text-amber-400 mt-0.5">&#9679;</span>
-                    <span><strong className="text-gray-700">Length</strong> — Shorter names are easier to remember (under 8 characters is ideal)</span>
+                    <span><strong className="text-gray-700">Character length (25%)</strong> — Shorter names score higher. 5 chars or fewer = 100.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-amber-400 mt-0.5">&#9679;</span>
-                    <span><strong className="text-gray-700">Pronunciation</strong> — Can it be read aloud without confusion?</span>
+                    <span><strong className="text-gray-700">Syllable count (20%)</strong> — Fewer syllables = easier to say. 1-2 syllables = 100.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-amber-400 mt-0.5">&#9679;</span>
-                    <span><strong className="text-gray-700">Spelling clarity</strong> — Only one obvious way to spell it? No hyphens or numbers?</span>
+                    <span><strong className="text-gray-700">Consonant clusters (15%)</strong> — Penalizes 3+ consecutive consonants that hurt readability.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-amber-400 mt-0.5">&#9679;</span>
-                    <span><strong className="text-gray-700">Radio test</strong> — Could someone type it correctly after hearing it on a podcast?</span>
+                    <span><strong className="text-gray-700">Vowel ratio (15%)</strong> — Ideal is 35-50% vowels. Too few or too many vowels reduce the score.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-400 mt-0.5">&#9679;</span>
+                    <span><strong className="text-gray-700">Double letters (10%)</strong> — Penalizes repeated letters (e.g., &ldquo;ll&rdquo;, &ldquo;ss&rdquo;) that cause typos.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-400 mt-0.5">&#9679;</span>
+                    <span><strong className="text-gray-700">Pronounceability (15%)</strong> — Can the name be broken into syllables? Unpronounceable names score low.</span>
                   </li>
                 </ul>
               </div>
@@ -227,7 +235,7 @@ export default function ScoringPage() {
           <div className="grid md:grid-cols-3 gap-4">
             <div className="bg-white/80 rounded-2xl p-4">
               <h4 className="text-sm font-medium text-gray-900 mb-1">Brand-first</h4>
-              <p className="text-xs text-gray-500">Prioritize brandability + memorability. You&apos;ll build SEO through content and marketing.</p>
+              <p className="text-xs text-gray-500">Prioritize brandability + linguistic quality. You&apos;ll build SEO through content and marketing.</p>
             </div>
             <div className="bg-white/80 rounded-2xl p-4">
               <h4 className="text-sm font-medium text-gray-900 mb-1">SEO-first</h4>

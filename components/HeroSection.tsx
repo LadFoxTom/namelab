@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { ToneFilter, StructureFilter, LengthPreset } from "@/lib/types";
 
 interface HeroSectionProps {
   prompt: string;
@@ -21,6 +22,12 @@ interface HeroSectionProps {
   maxLength: number | undefined;
   setMaxLength: (value: number | undefined) => void;
   isDomainMode: boolean;
+  tones: ToneFilter[];
+  setTones: (value: ToneFilter[]) => void;
+  structures: StructureFilter[];
+  setStructures: (value: StructureFilter[]) => void;
+  lengthPreset: LengthPreset;
+  setLengthPreset: (value: LengthPreset) => void;
 }
 
 const textGradientStyle = {
@@ -31,6 +38,29 @@ const textGradientStyle = {
 } as React.CSSProperties;
 
 const COUNT_OPTIONS = [3, 6, 9];
+
+const TONE_OPTIONS: { value: ToneFilter; label: string }[] = [
+  { value: "playful", label: "Playful" },
+  { value: "professional", label: "Professional" },
+  { value: "bold", label: "Bold" },
+  { value: "calm", label: "Calm" },
+  { value: "techy", label: "Techy" },
+];
+
+const STRUCTURE_OPTIONS: { value: StructureFilter; label: string }[] = [
+  { value: "invented", label: "Invented" },
+  { value: "compound", label: "Compound" },
+  { value: "portmanteau", label: "Portmanteau" },
+  { value: "suffix", label: "Suffix (-ify, -ly)" },
+  { value: "prefix", label: "Prefix (re-, co-)" },
+];
+
+const LENGTH_PRESETS: { value: LengthPreset; label: string; desc: string }[] = [
+  { value: "short", label: "Short", desc: "4-6" },
+  { value: "sweet-spot", label: "Sweet Spot", desc: "6-9" },
+  { value: "descriptive", label: "Descriptive", desc: "9-12" },
+  { value: "custom", label: "Custom", desc: "" },
+];
 
 export default function HeroSection({
   prompt,
@@ -51,6 +81,12 @@ export default function HeroSection({
   maxLength,
   setMaxLength,
   isDomainMode,
+  tones,
+  setTones,
+  structures,
+  setStructures,
+  lengthPreset,
+  setLengthPreset,
 }: HeroSectionProps) {
   const [tldDropdownOpen, setTldDropdownOpen] = useState(false);
   const [includeInput, setIncludeInput] = useState("");
@@ -79,6 +115,22 @@ export default function HeroSection({
     }
   };
 
+  const toggleTone = (tone: ToneFilter) => {
+    if (tones.includes(tone)) {
+      setTones(tones.filter((t) => t !== tone));
+    } else {
+      setTones([...tones, tone]);
+    }
+  };
+
+  const toggleStructure = (structure: StructureFilter) => {
+    if (structures.includes(structure)) {
+      setStructures(structures.filter((s) => s !== structure));
+    } else {
+      setStructures([...structures, structure]);
+    }
+  };
+
   const addIncludeWord = () => {
     const word = includeInput.trim().toLowerCase();
     if (word && !includeWords.includes(word)) {
@@ -96,6 +148,7 @@ export default function HeroSection({
   };
 
   const allSelected = selectedTlds.length === allTlds.length;
+  const hasActiveFilters = tones.length > 0 || structures.length > 0 || includeWords.length > 0 || excludeWords.length > 0 || lengthPreset !== "sweet-spot";
 
   return (
     <section className="relative min-h-[70vh] sm:min-h-[85vh] flex flex-col items-center justify-center px-4 sm:px-6 md:px-12 py-12 sm:py-20 bg-gradient-to-b from-gray-50 to-white overflow-x-clip">
@@ -275,7 +328,7 @@ export default function HeroSection({
             {!isDomainMode && <button
               onClick={() => setKeywordsOpen(!keywordsOpen)}
               className={`flex items-center gap-2 px-4 py-3 rounded-full border text-sm transition-all ${
-                includeWords.length > 0 || excludeWords.length > 0 || minLength || maxLength
+                hasActiveFilters
                   ? "border-purple-300 bg-purple-50 text-purple-600"
                   : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
               }`}
@@ -284,7 +337,7 @@ export default function HeroSection({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
               </svg>
               <span>
-                {includeWords.length + excludeWords.length > 0 || minLength || maxLength
+                {hasActiveFilters
                   ? "Filters active"
                   : "Filters"}
               </span>
@@ -364,37 +417,105 @@ export default function HeroSection({
             </div>}
           </div>
 
-          {/* Keywords panel */}
+          {/* Filter panel */}
           {!isDomainMode && keywordsOpen && (
-            <div className="w-full max-w-xl mx-auto mt-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm animate-slide-up">
-              {/* Character length filters */}
-              <div className="flex items-center gap-3 mb-4">
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+            <div className="w-full max-w-xl mx-auto mt-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm animate-slide-up space-y-4">
+              {/* Tone selector */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
+                  Tone
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {TONE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => toggleTone(opt.value)}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                        tones.includes(opt.value)
+                          ? "bg-purple-100 text-purple-700 border border-purple-300"
+                          : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Structure selector */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
+                  Structure
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {STRUCTURE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => toggleStructure(opt.value)}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                        structures.includes(opt.value)
+                          ? "bg-purple-100 text-purple-700 border border-purple-300"
+                          : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Length presets */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
                   Name length
                 </label>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    max={30}
-                    value={minLength ?? ""}
-                    onChange={(e) => setMinLength(e.target.value ? parseInt(e.target.value) : undefined)}
-                    placeholder="Min"
-                    className="w-20 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-50 font-light text-center"
-                  />
-                  <span className="text-gray-400 text-sm">—</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={30}
-                    value={maxLength ?? ""}
-                    onChange={(e) => setMaxLength(e.target.value ? parseInt(e.target.value) : undefined)}
-                    placeholder="Max"
-                    className="w-20 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-50 font-light text-center"
-                  />
-                  <span className="text-xs text-gray-400">chars</span>
+                  <div className="flex bg-gray-50 border border-gray-200 rounded-xl p-0.5">
+                    {LENGTH_PRESETS.map((preset) => (
+                      <button
+                        key={preset.value}
+                        onClick={() => setLengthPreset(preset.value)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          lengthPreset === preset.value
+                            ? "bg-white text-gray-900 shadow-sm"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        {preset.label}
+                        {preset.desc && (
+                          <span className="text-gray-400 ml-1">{preset.desc}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+                {lengthPreset === "custom" && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={minLength ?? ""}
+                      onChange={(e) => setMinLength(e.target.value ? parseInt(e.target.value) : undefined)}
+                      placeholder="Min"
+                      className="w-20 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-50 font-light text-center"
+                    />
+                    <span className="text-gray-400 text-sm">-</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={maxLength ?? ""}
+                      onChange={(e) => setMaxLength(e.target.value ? parseInt(e.target.value) : undefined)}
+                      placeholder="Max"
+                      className="w-20 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-50 font-light text-center"
+                    />
+                    <span className="text-xs text-gray-400">chars</span>
+                  </div>
+                )}
               </div>
+
+              {/* Include / Exclude keywords */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Include words */}
                 <div>

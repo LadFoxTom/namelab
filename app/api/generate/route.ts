@@ -4,6 +4,11 @@ import { checkDomainsAvailability, buildDomainResult } from "@/lib/check-availab
 import { generateAffiliateUrl } from "@/lib/affiliate";
 import { checkRateLimit, getUserTier } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
+import { qualityGate } from "@/lib/scoring/quality-gate";
+import { computeLqs } from "@/lib/scoring/lqs";
+import { extractKeywords } from "@/lib/generation/keyword-extract";
+import { selectPipelines, runPipelines } from "@/lib/generation/pipelines";
+import { resolveLengthPreset, buildTonePrompt } from "@/lib/generation/prompts";
 import {
   GenerateRequest,
   DomainResult,
@@ -11,12 +16,17 @@ import {
   ProviderResult,
 } from "@/lib/types";
 
-const MAX_ITERATIONS = 3;
+const MAX_ITERATIONS = 5;
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateRequest;
-    const { businessIdea, userId, count, tlds, includeWords, excludeWords, minLength, maxLength } = body;
+    const {
+      businessIdea, userId, count, tlds,
+      includeWords, excludeWords,
+      minLength, maxLength,
+      tones, structures, lengthPreset,
+    } = body;
 
     if (!businessIdea || typeof businessIdea !== "string" || businessIdea.trim().length === 0) {
       return NextResponse.json(
@@ -42,6 +52,38 @@ export async function POST(request: NextRequest) {
     const tierMax = tier === "free" ? 10 : 20;
     const desiredCount = count || tierMax;
 
+    // Resolve length preset
+    let resolvedMin = minLength;
+    let resolvedMax = maxLength;
+    if (lengthPreset && lengthPreset !== "custom") {
+      const preset = resolveLengthPreset(lengthPreset);
+      if (preset) {
+        resolvedMin = preset.min;
+        resolvedMax = preset.max;
+      }
+    }
+
+    // Extract keywords once before the iteration loop
+    let keywords;
+    try {
+      keywords = await extractKeywords(businessIdea);
+      console.log("[Generate] Keywords extracted:", keywords);
+    } catch (err) {
+      console.error("[Generate] Keyword extraction failed, using defaults:", err);
+      keywords = {
+        primaryKeywords: [],
+        emotionalTone: "professional",
+        industryVertical: "general",
+        targetAudience: "general audience",
+      };
+    }
+
+    // Select active pipelines based on structure filters
+    const activePipelines = selectPipelines(structures);
+    console.log(`[Generate] Active pipelines: ${activePipelines.map(p => p.id).join(", ")}`);
+
+    const toneModifier = tones ? buildTonePrompt(tones) : "";
+
     // Iterative generate-check loop
     const availableResults: DomainResult[] = [];
     const alreadyTried: string[] = [];
@@ -51,30 +93,82 @@ export async function POST(request: NextRequest) {
 
     for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
       const remainingNeeded = desiredCount - availableResults.length;
+      if (remainingNeeded <= 0) break;
+
       const generateCount = Math.min(Math.max(remainingNeeded * 3, 6), 30);
 
       console.log(`[Generate] Iteration ${iteration + 1}/${MAX_ITERATIONS}: need ${remainingNeeded} more, generating ${generateCount} suggestions (${alreadyTried.length} already tried)`);
 
-      // Generate domain suggestions via AI
-      const aiResponse = await generateDomainSuggestions(
-        businessIdea,
-        generateCount,
-        tlds,
-        includeWords,
-        excludeWords,
-        alreadyTried.length > 0 ? alreadyTried : undefined,
-        minLength,
-        maxLength
-      );
+      let suggestions: DomainSuggestion[];
 
-      if (!industry) {
-        industry = aiResponse.industry;
+      // Use multi-pipeline for first iteration, fallback to single call for retries
+      if (iteration === 0) {
+        try {
+          suggestions = await runPipelines(
+            activePipelines,
+            businessIdea,
+            keywords,
+            tlds || [],
+            includeWords,
+            excludeWords,
+            alreadyTried.length > 0 ? alreadyTried : undefined,
+            resolvedMin,
+            resolvedMax,
+            toneModifier
+          );
+          industry = keywords.industryVertical;
+        } catch (err) {
+          console.error("[Generate] Pipeline generation failed, falling back to single call:", err);
+          const aiResponse = await generateDomainSuggestions(
+            businessIdea, generateCount, tlds,
+            includeWords, excludeWords,
+            alreadyTried.length > 0 ? alreadyTried : undefined,
+            resolvedMin, resolvedMax, tones, structures
+          );
+          if (!industry) industry = aiResponse.industry;
+          suggestions = aiResponse.suggestions;
+        }
+      } else {
+        // Subsequent iterations: single AI call for remaining domains
+        const aiResponse = await generateDomainSuggestions(
+          businessIdea, generateCount, tlds,
+          includeWords, excludeWords,
+          alreadyTried.length > 0 ? alreadyTried : undefined,
+          resolvedMin, resolvedMax, tones, structures
+        );
+        if (!industry) industry = aiResponse.industry;
+        suggestions = aiResponse.suggestions;
       }
 
-      const { suggestions } = aiResponse;
-      allSuggestions.push(...suggestions);
+      // Quality gate + LQS scoring BEFORE availability check
+      const gatedSuggestions: DomainSuggestion[] = [];
+      for (const suggestion of suggestions) {
+        // Skip already tried
+        if (alreadyTried.includes(suggestion.domain)) continue;
 
-      const domainNames = suggestions.map((s) => s.domain);
+        const gate = qualityGate(suggestion.domain);
+        if (!gate.passed) {
+          console.log(`[QualityGate] Rejected "${suggestion.domain}": ${gate.reason}`);
+          alreadyTried.push(suggestion.domain);
+          continue;
+        }
+
+        // Compute LQS
+        const lqs = computeLqs(suggestion.domain);
+        suggestion.memorabilityScore = lqs.total;
+        suggestion.lqsScore = lqs.total;
+
+        gatedSuggestions.push(suggestion);
+        alreadyTried.push(suggestion.domain);
+      }
+
+      console.log(`[Generate] ${gatedSuggestions.length}/${suggestions.length} passed quality gate`);
+
+      if (gatedSuggestions.length === 0) continue;
+
+      allSuggestions.push(...gatedSuggestions);
+
+      const domainNames = gatedSuggestions.map((s) => s.domain);
 
       // Check availability across all registrars
       const providerMap = await checkDomainsAvailability(domainNames);
@@ -85,9 +179,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Build results, filter to available only
-      for (const suggestion of suggestions) {
-        alreadyTried.push(suggestion.domain);
-
+      for (const suggestion of gatedSuggestions) {
         const result = buildDomainResult(suggestion, providerMap);
         if (result) {
           availableResults.push(result);
@@ -122,6 +214,7 @@ export async function POST(request: NextRequest) {
                 brandabilityScore: s.brandabilityScore,
                 memorabilityScore: s.memorabilityScore,
                 seoScore: s.seoScore,
+                lqsScore: s.lqsScore || null,
                 providers: {
                   create: providers.map((p) => ({
                     registrar: p.registrar,

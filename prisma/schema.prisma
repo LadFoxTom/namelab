@@ -49,6 +49,7 @@ model DomainSuggestion {
   brandabilityScore Int
   memorabilityScore Int
   seoScore          Int
+  lqsScore          Int?
   providers         DomainPrice[]
   createdAt         DateTime      @default(now())
 }
@@ -76,4 +77,15 @@ model AffiliateClick {
   affiliateUrl String
   clickedAt    DateTime  @default(now())
   convertedAt  DateTime?
+}
+
+model TrademarkCache {
+  id         String   @id @default(cuid())
+  domainName String   @unique
+  risk       String
+  resultJson Json
+  checkedAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([domainName])
 }

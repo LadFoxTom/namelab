@@ -1,5 +1,6 @@
 import OpenAI from "openai";
-import { ClaudeResponse } from "./types";
+import { ClaudeResponse, ToneFilter, StructureFilter } from "./types";
+import { buildTonePrompt, buildStructurePrompt } from "./generation/prompts";
 
 export async function generateDomainSuggestions(
   businessIdea: string,
@@ -9,11 +10,16 @@ export async function generateDomainSuggestions(
   excludeWords?: string[],
   alreadyTried?: string[],
   minLength?: number,
-  maxLength?: number
+  maxLength?: number,
+  tones?: ToneFilter[],
+  structures?: StructureFilter[]
 ): Promise<ClaudeResponse> {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
+
+  const tonePrompt = tones ? buildTonePrompt(tones) : "";
+  const structurePrompt = structures ? buildStructurePrompt(structures) : "";
 
   const prompt = `You are a world-class brand naming expert. Generate ${maxSuggestions} strong, professional domain name suggestions for this business idea: "${businessIdea}"
 
@@ -26,7 +32,6 @@ Return ONLY valid JSON (no markdown, no code fences) in this exact format:
       "namingStrategy": "portmanteau|brandable|descriptive|keyword-rich|creative",
       "reasoning": "2-3 sentences explaining strategic value and what makes this name work for the business",
       "brandabilityScore": 85,
-      "memorabilityScore": 90,
       "seoScore": 75
     }
   ]
@@ -61,13 +66,6 @@ Brandability (0-100) — How strong is this as a brand?
 - 30-49: Very generic or hard to differentiate
 - 0-29: Completely generic dictionary words with no brand identity
 
-Memorability (0-100) — How easy to remember and type?
-- 90-100: Short (≤6 chars), phonetically simple, one obvious spelling (e.g. "Uber", "Zoom")
-- 70-89: Short-to-medium length, easy to spell, sounds catchy
-- 50-69: Medium length, mostly intuitive spelling but might need repeating
-- 30-49: Long or awkward to spell/pronounce
-- 0-29: Very long, confusing spelling, easy to mistype
-
 SEO Potential (0-100) — How well does it signal relevance to search engines?
 - 90-100: Contains exact industry keyword in domain (e.g. "Hotels.com")
 - 70-89: Contains partial keyword or strong semantic signal
@@ -76,7 +74,7 @@ SEO Potential (0-100) — How well does it signal relevance to search engines?
 - 0-29: Completely unrelated to the business domain
 
 IMPORTANT: Scores MUST vary significantly across suggestions. A brandable invented word should score high on brandability but low on SEO. A keyword-rich domain should score high on SEO but lower on brandability. Be honest and critical — not every domain deserves 80+.
-
+${tonePrompt}${structurePrompt}
 ${includeWords && includeWords.length > 0 ? `INCLUDE WORDS (MANDATORY — this is the most important rule):
 Every single domain suggestion MUST contain at least one of the following words: ${includeWords.join(", ")}
 The word must appear clearly in the domain — as a prefix (e.g., "CraftStudio"), suffix (e.g., "WallCraft"), root of a compound (e.g., "Craftify"), or naturally blended into a portmanteau (e.g., "Craftopia").
@@ -105,6 +103,14 @@ ${alreadyTried && alreadyTried.length > 0 ? `\nALREADY TRIED (do NOT suggest any
   });
 
   const responseText = completion.choices[0]?.message?.content || "";
+  const parsed = JSON.parse(responseText);
 
-  return JSON.parse(responseText);
+  // Normalize: AI no longer returns memorabilityScore, set to 0 (will be overridden by LQS)
+  if (parsed.suggestions) {
+    for (const s of parsed.suggestions) {
+      s.memorabilityScore = s.memorabilityScore || 0;
+    }
+  }
+
+  return parsed;
 }
