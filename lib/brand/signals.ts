@@ -13,6 +13,7 @@ export interface BrandSignals {
   brandPersonality: string;
   avoidElements: string[];
   suggestedKeywords: string[];
+  logoDescription?: string;
 }
 
 export interface ColorDirection {
@@ -67,5 +68,9 @@ Be specific and opinionated. A domain like "flowmint" should suggest teal/mint c
   });
 
   const parsed = JSON.parse(response.choices[0].message.content!);
+  // Preserve user's logo description if provided
+  if (userPreferences?.logoDescription) {
+    parsed.logoDescription = userPreferences.logoDescription;
+  }
   return { ...parsed, domainName };
 }

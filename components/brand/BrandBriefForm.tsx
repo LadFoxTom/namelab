@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 export interface BrandPreferences {
   businessDescription: string;
+  logoDescription?: string;
   tone?: string;
   colorPreference?: string;
   iconStyle?: string;
@@ -37,6 +38,7 @@ const ICON_STYLES = [
 
 export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack }: BrandBriefFormProps) {
   const [businessDescription, setBusinessDescription] = useState(searchQuery);
+  const [logoDescription, setLogoDescription] = useState('');
   const [tone, setTone] = useState<string | null>(null);
   const [colorPreference, setColorPreference] = useState('');
   const [iconStyle, setIconStyle] = useState<string | null>(null);
@@ -44,6 +46,7 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
   const handleSubmit = () => {
     onSubmit({
       businessDescription,
+      logoDescription: logoDescription.trim() || undefined,
       tone: tone ?? undefined,
       colorPreference: colorPreference.trim() || undefined,
       iconStyle: iconStyle ?? undefined,
@@ -74,6 +77,18 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
             rows={2}
             className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-400 focus:ring-1 focus:ring-purple-400 focus:outline-none resize-none"
             placeholder="What does your business do?"
+          />
+        </div>
+
+        {/* Logo description */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Logo description</label>
+          <textarea
+            value={logoDescription}
+            onChange={(e) => setLogoDescription(e.target.value)}
+            rows={2}
+            className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-400 focus:ring-1 focus:ring-purple-400 focus:outline-none resize-none"
+            placeholder="e.g. A lightning bolt combined with a leaf, modern and clean"
           />
         </div>
 

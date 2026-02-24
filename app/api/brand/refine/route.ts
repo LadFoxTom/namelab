@@ -25,7 +25,16 @@ export async function POST(req: NextRequest) {
   await prisma.brandConcept.deleteMany({ where: { brandSessionId: sessionId } });
 
   try {
-    const signals = await extractBrandSignals(session.domainName, session.searchQuery, preferences);
+    const userPrefs: Partial<BrandSignals> = {};
+    if (preferences?.tone) userPrefs.tone = preferences.tone as BrandSignals['tone'];
+    if (preferences?.iconStyle) userPrefs.iconStyle = preferences.iconStyle as BrandSignals['iconStyle'];
+    if (preferences?.colorPreference) {
+      userPrefs.colorDirection = { primary: preferences.colorPreference, mood: '', avoid: '', paletteStyle: 'analogous' };
+    }
+    if (preferences?.logoDescription) userPrefs.logoDescription = preferences.logoDescription;
+
+    const description = preferences?.businessDescription || session.searchQuery;
+    const signals = await extractBrandSignals(session.domainName, description, Object.keys(userPrefs).length > 0 ? userPrefs : undefined);
     const palette = pregeneratePalette(signals);
 
     await prisma.brandSession.update({

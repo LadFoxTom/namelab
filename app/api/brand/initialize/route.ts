@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     if (preferences?.colorPreference) {
       userPrefs.colorDirection = { primary: preferences.colorPreference, mood: '', avoid: '', paletteStyle: 'analogous' };
     }
+    if (preferences?.logoDescription) userPrefs.logoDescription = preferences.logoDescription;
 
     const description = preferences?.businessDescription || searchQuery;
     const signals = await extractBrandSignals(domainName, description, Object.keys(userPrefs).length > 0 ? userPrefs : undefined);

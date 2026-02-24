@@ -58,11 +58,13 @@ function buildWordmarkPrompt(signals: BrandSignals, palette: GeneratedPalette): 
     sophisticated: 'elegant serif, high contrast strokes, refined',
   }[signals.tone] ?? 'clean modern sans-serif';
 
+  const logoContext = signals.logoDescription ? `\nInspired by: ${signals.logoDescription}. Apply this concept subtly to the letterform design.` : '';
+
   return {
     prompt: `
 Professional wordmark logo design for the brand name "${signals.domainName}".
 Pure white background. The brand name rendered in ${fontStyle}.
-Color: ${palette.primary} for the text.
+Color: ${palette.primary} for the text.${logoContext}
 Typography only — absolutely no icons, no symbols, no decorative elements, no borders.
 The letters of "${signals.domainName}" are the ONLY visual element.
 Centered on the canvas with generous whitespace. Flat 2D vector style.
@@ -74,7 +76,7 @@ Logo design, branding, vector graphic, flat design.
 }
 
 function buildIconWordmarkPrompt(signals: BrandSignals, palette: GeneratedPalette): PromptSet {
-  const iconDescription = signals.suggestedKeywords.slice(0, 2).join(' or ');
+  const iconDescription = signals.logoDescription || signals.suggestedKeywords.slice(0, 2).join(' or ');
   const iconStyle = {
     minimal:    'simple flat geometric icon',
     geometric:  'precise geometric symbol made of basic shapes',
@@ -118,7 +120,7 @@ Centered with generous whitespace. Professional monogram logo, lettermark, brand
 }
 
 function buildAbstractMarkPrompt(signals: BrandSignals, palette: GeneratedPalette): PromptSet {
-  const conceptWords = signals.suggestedKeywords.join(', ');
+  const conceptWords = signals.logoDescription || signals.suggestedKeywords.join(', ');
   const shapeLanguage = {
     minimal:    'single minimal geometric form',
     geometric:  'precise geometric construction from basic shapes',

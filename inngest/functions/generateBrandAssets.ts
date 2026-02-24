@@ -5,8 +5,10 @@ import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { generateSocialKit } from '@/lib/brand/socialKit';
 import { generateFaviconPackage } from '@/lib/brand/favicons';
+import { generateBrandPdf } from '@/lib/brand/brandPdf';
 import { assembleZip } from '@/lib/brand/packaging';
 import { uploadBufferAndGetSignedUrl } from '@/lib/brand/storage';
+import { BrandSignals } from '@/lib/brand/signals';
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -22,15 +24,15 @@ export const generateBrandAssets = inngest.createFunction(
     const { purchaseId, brandSessionId, selectedConceptId, tier, domainName, email } = event.data;
 
     // Step 1: Load data and process images (URL-based steps)
-    const { originalUrl, tone } = await step.run('load-data', async () => {
+    const { originalUrl, tone, signals } = await step.run('load-data', async () => {
       const brandSession = await prisma.brandSession.findUniqueOrThrow({
         where: { id: brandSessionId },
       });
       const concept = await prisma.brandConcept.findUniqueOrThrow({
         where: { id: selectedConceptId },
       });
-      const signals = brandSession.signals as any;
-      return { originalUrl: concept.originalUrl, tone: signals.tone as string };
+      const sessionSignals = brandSession.signals as unknown as BrandSignals;
+      return { originalUrl: concept.originalUrl, tone: sessionSignals.tone as string, signals: sessionSignals };
     });
 
     // Step 2: Process through fal.ai (returns URLs, safe to serialize)
@@ -48,8 +50,10 @@ export const generateBrandAssets = inngest.createFunction(
       const favicons = await generateFaviconPackage(logoPngBuffer, domainName);
 
       let socialKit = undefined;
+      let brandPdf = undefined;
       if (tier !== 'LOGO_ONLY') {
         socialKit = await generateSocialKit(logoPngBuffer, palette.primary);
+        brandPdf = await generateBrandPdf(domainName, signals, logoPngBuffer, logoSvg, palette, fonts);
       }
 
       const zipBuffer = await assembleZip({
@@ -60,6 +64,7 @@ export const generateBrandAssets = inngest.createFunction(
         fonts,
         socialKit,
         favicons,
+        brandPdf,
         tier,
       });
 
