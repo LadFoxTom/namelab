@@ -12,6 +12,26 @@ export interface GeneratedConcept {
 }
 
 const LOGO_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark'];
+const FAL_CONCURRENCY = 2;
+
+async function runWithConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = new Array(tasks.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < tasks.length) {
+      const i = nextIndex++;
+      try {
+        results[i] = { status: 'fulfilled', value: await tasks[i]() };
+      } catch (reason: any) {
+        results[i] = { status: 'rejected', reason };
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, () => worker()));
+  return results;
+}
 
 export async function generateLogoConcepts(
   signals: BrandSignals,
@@ -19,28 +39,28 @@ export async function generateLogoConcepts(
 ): Promise<GeneratedConcept[]> {
   const styles = stylesOverride ?? LOGO_STYLES;
 
-  const results = await Promise.allSettled(
-    styles.map(async (style) => {
-      const prompt = buildLogoPrompt(style, signals);
+  const tasks = styles.map((style) => async () => {
+    const prompt = buildLogoPrompt(style, signals);
 
-      const result = await fal.subscribe('fal-ai/flux-pro/v1.1', {
-        input: {
-          prompt,
-          image_size: { width: 1024, height: 1024 },
-          num_images: 1,
-          safety_tolerance: '2',
-        },
-        logs: false,
-      }) as any;
-
-      return result.data.images.map((img: { url: string }, i: number) => ({
-        style,
-        imageUrl: img.url,
+    const result = await fal.subscribe('fal-ai/flux-pro/v1.1', {
+      input: {
         prompt,
-        seed: (result.data.seed || 0) + i,
-      }));
-    })
-  );
+        image_size: { width: 1024, height: 1024 },
+        num_images: 1,
+        safety_tolerance: '2',
+      },
+      logs: false,
+    }) as any;
+
+    return result.data.images.map((img: { url: string }, i: number) => ({
+      style,
+      imageUrl: img.url,
+      prompt,
+      seed: (result.data.seed || 0) + i,
+    }));
+  });
+
+  const results = await runWithConcurrency(tasks, FAL_CONCURRENCY);
 
   const concepts: GeneratedConcept[] = [];
   for (const result of results) {
