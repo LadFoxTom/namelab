@@ -8,11 +8,69 @@ import {
   AffiliateProvider,
   TldVariation,
   TldCheckResponse,
+  SiteInfo,
+  SiteStatus,
+  SiteCategory,
 } from "@/lib/types";
 
 const TLDS = [".com", ".io", ".ai", ".co", ".net", ".app", ".nl", ".dev", ".xyz", ".org"];
 
-async function fetchSiteTitle(domain: string): Promise<string | null> {
+const PARKING_PATTERNS = [
+  /this domain is for sale/i,
+  /buy this domain/i,
+  /domain is available/i,
+  /domain may be for sale/i,
+  /domain parking/i,
+  /parked free/i,
+  /parked by/i,
+  /hugedomains/i,
+  /sedo\.com/i,
+  /dan\.com/i,
+  /afternic/i,
+  /godaddy\s*parking/i,
+  /undeveloped\.com/i,
+  /domainlore/i,
+  /this page is parked/i,
+  /domain has expired/i,
+  /renew this domain/i,
+];
+
+function extractTitle(html: string): string | null {
+  const match = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+  return match?.[1]?.trim().substring(0, 100) || null;
+}
+
+function extractMetaDescription(html: string): string | null {
+  const match = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i)
+    || html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i);
+  return match?.[1]?.trim().substring(0, 200) || null;
+}
+
+function detectParked(html: string, title: string | null, description: string | null): boolean {
+  const text = `${title || ""} ${description || ""} ${html.substring(0, 5000)}`.toLowerCase();
+  return PARKING_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function classifySite(title: string | null, description: string | null): SiteCategory | null {
+  const text = `${title || ""} ${description || ""}`.toLowerCase();
+
+  const categories: { category: SiteCategory; keywords: string[] }[] = [
+    { category: "saas", keywords: ["platform", "software", "saas", "dashboard", "api", "cloud service", "automation"] },
+    { category: "ecommerce", keywords: ["shop", "store", "buy now", "cart", "products", "free shipping", "marketplace"] },
+    { category: "agency", keywords: ["agency", "studio", "consulting", "services", "we build", "we create", "digital agency"] },
+    { category: "blog", keywords: ["blog", "articles", "posts", "journal", "magazine", "news"] },
+    { category: "portfolio", keywords: ["portfolio", "designer", "freelance", "my work", "creative"] },
+    { category: "corporate", keywords: ["about us", "our team", "company", "enterprise", "solutions", "industries"] },
+    { category: "community", keywords: ["forum", "community", "discussion", "members", "join us"] },
+  ];
+
+  for (const { category, keywords } of categories) {
+    if (keywords.some((kw) => text.includes(kw))) return category;
+  }
+  return "other";
+}
+
+async function fetchSiteInfo(domain: string): Promise<SiteInfo> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
@@ -26,16 +84,20 @@ async function fetchSiteTitle(domain: string): Promise<string | null> {
     });
     clearTimeout(timeout);
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return { status: "inactive", title: null, description: null, category: null };
+    }
 
     const html = await response.text();
-    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-    if (titleMatch && titleMatch[1]) {
-      return titleMatch[1].trim().substring(0, 100);
-    }
-    return null;
+    const title = extractTitle(html);
+    const description = extractMetaDescription(html);
+    const isParked = detectParked(html, title, description);
+    const status: SiteStatus = isParked ? "parked" : "active";
+    const category = status === "active" ? classifySite(title, description) : null;
+
+    return { status, title, description, category };
   } catch {
-    return null;
+    return { status: "inactive", title: null, description: null, category: null };
   }
 }
 
@@ -109,8 +171,10 @@ export async function GET(request: NextRequest) {
           : null;
 
       let siteTitle: string | null = null;
+      let siteInfo: SiteInfo | null = null;
       if (!isAvailable) {
-        siteTitle = await fetchSiteTitle(domain);
+        siteInfo = await fetchSiteInfo(domain);
+        siteTitle = siteInfo.title;
       }
 
       return {
@@ -126,6 +190,7 @@ export async function GET(request: NextRequest) {
             }
           : null,
         siteTitle,
+        siteInfo,
       };
     })
   );

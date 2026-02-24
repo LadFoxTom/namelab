@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { DomainResult } from "@/lib/types";
 import { useCurrency } from "./CurrencyContext";
@@ -116,6 +116,19 @@ export default function DomainCard({ domain, index, onMoreLikeThis, onLoginPromp
   const baseName = domain.domain.split(".")[0];
   const detailUrl = `/domain/${encodeURIComponent(baseName)}?tld=.${domain.domain.split(".").pop()}&brand=${domain.brandabilityScore}&memory=${linguisticScore}&seo=${domain.seoScore}&strategy=${encodeURIComponent(domain.namingStrategy)}&reasoning=${encodeURIComponent(domain.reasoning)}`;
 
+  const [tldInfo, setTldInfo] = useState<{ available: number; total: number } | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/check-tlds-quick?name=${encodeURIComponent(baseName)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.availableCount !== undefined) {
+          setTldInfo({ available: data.availableCount, total: data.totalCount });
+        }
+      })
+      .catch(() => {});
+  }, [baseName]);
+
   const checkTrademark = async () => {
     setTrademarkStatus("loading");
     try {
@@ -164,10 +177,24 @@ export default function DomainCard({ domain, index, onMoreLikeThis, onLoginPromp
               </span>}
               <Link
                 href={detailUrl}
-                className="inline-flex items-center gap-1 text-[10px] text-purple-400 hover:text-purple-600 transition-colors ml-1"
+                className="inline-flex items-center gap-1 text-[10px] transition-colors ml-1"
               >
-                Check all TLDs
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {tldInfo ? (
+                  <span
+                    className={`font-medium ${
+                      tldInfo.available >= 7
+                        ? "text-green-500"
+                        : tldInfo.available >= 4
+                        ? "text-amber-500"
+                        : "text-red-400"
+                    }`}
+                  >
+                    {tldInfo.available}/{tldInfo.total} TLDs
+                  </span>
+                ) : (
+                  <span className="text-purple-400">Check TLDs</span>
+                )}
+                <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
               </Link>

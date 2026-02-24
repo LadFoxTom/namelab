@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { TldVariation, DomainResult } from "@/lib/types";
+import { TldVariation, DomainResult, SiteCategory } from "@/lib/types";
 import { useCurrency } from "./CurrencyContext";
 import { useSavedDomains } from "./SavedDomainsContext";
 import { useAuth } from "./AuthContext";
@@ -36,6 +36,20 @@ function getRegistrarInitial(registrar: string): string {
     namesilo: "S",
   };
   return initials[registrar] || "?";
+}
+
+function getCategoryLabel(category: SiteCategory): string {
+  const labels: Record<SiteCategory, string> = {
+    saas: "SaaS",
+    agency: "Agency",
+    ecommerce: "E-commerce",
+    blog: "Blog",
+    portfolio: "Portfolio",
+    corporate: "Corporate",
+    community: "Community",
+    other: "Website",
+  };
+  return labels[category] || "Website";
 }
 
 async function trackClick(
@@ -143,9 +157,46 @@ export default function TldVariationRow({
               </button>
             </>
           ) : !variation.available ? (
-            <span className="text-xs sm:text-sm text-gray-400 italic truncate max-w-[100px] sm:max-w-[200px]">
-              {variation.siteTitle || "In use"}
-            </span>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {variation.siteInfo ? (
+                <>
+                  <span
+                    className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] font-medium uppercase tracking-wider ${
+                      variation.siteInfo.status === "active"
+                        ? "bg-blue-50 text-blue-600"
+                        : variation.siteInfo.status === "parked"
+                        ? "bg-amber-50 text-amber-600"
+                        : "bg-gray-100 text-gray-400"
+                    }`}
+                  >
+                    {variation.siteInfo.status === "active"
+                      ? "Active"
+                      : variation.siteInfo.status === "parked"
+                      ? "Parked"
+                      : "Inactive"}
+                  </span>
+                  {variation.siteInfo.status === "active" &&
+                    variation.siteInfo.category &&
+                    variation.siteInfo.category !== "other" && (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full bg-gray-100 text-[9px] font-medium uppercase tracking-wider text-gray-500">
+                        {getCategoryLabel(variation.siteInfo.category)}
+                      </span>
+                    )}
+                  {variation.siteInfo.title && (
+                    <span
+                      className="text-[10px] sm:text-xs text-gray-400 italic truncate max-w-[100px] sm:max-w-[180px] hidden sm:inline"
+                      title={variation.siteInfo.title}
+                    >
+                      {variation.siteInfo.title}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-xs sm:text-sm text-gray-400 italic">
+                  {variation.siteTitle || "In use"}
+                </span>
+              )}
+            </div>
           ) : null}
           {domainMeta && (
             <button

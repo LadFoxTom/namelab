@@ -92,6 +92,16 @@ export interface TrackClickRequest {
   userId?: string;
 }
 
+export type SiteStatus = 'active' | 'parked' | 'inactive';
+export type SiteCategory = 'saas' | 'agency' | 'ecommerce' | 'blog' | 'portfolio' | 'corporate' | 'community' | 'other';
+
+export interface SiteInfo {
+  status: SiteStatus;
+  title: string | null;
+  description: string | null;
+  category: SiteCategory | null;
+}
+
 export interface TldVariation {
   domain: string;
   tld: string;
@@ -103,6 +113,7 @@ export interface TldVariation {
     affiliateUrl: string;
   } | null;
   siteTitle: string | null;
+  siteInfo?: SiteInfo | null;
 }
 
 export interface TldCheckResponse {
