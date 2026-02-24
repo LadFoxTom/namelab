@@ -40,18 +40,15 @@ export async function generateSocialKit(
   for (const size of SOCIAL_SIZES) {
     const logoSize = Math.round(Math.min(size.w, size.h) * size.logoPct);
 
+    // Resize logo to fit within the target area, white background
     const resizedLogo = await sharp(logoPngBuffer)
-      .resize(logoSize, logoSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize(logoSize, logoSize, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 255 } })
       .png()
       .toBuffer();
 
-    const hexColor = primaryColor.replace('#', '');
-    const r = parseInt(hexColor.slice(0, 2), 16);
-    const g = parseInt(hexColor.slice(2, 4), 16);
-    const b = parseInt(hexColor.slice(4, 6), 16);
-
+    // White canvas with logo centered
     const buffer = await sharp({
-      create: { width: size.w, height: size.h, channels: 4, background: { r, g, b, alpha: 255 } }
+      create: { width: size.w, height: size.h, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 255 } }
     })
       .composite([{ input: resizedLogo, gravity: 'centre' }])
       .png()

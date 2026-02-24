@@ -33,7 +33,7 @@
  */
 
 import { prisma } from '../lib/prisma';
-import { removeBackground, upscaleImage, downloadToBuffer, vectorizeToSvg } from '../lib/brand/postprocess';
+import { upscaleImage, downloadToBuffer, vectorizeToSvg } from '../lib/brand/postprocess';
 import { extractBrandPalette } from '../lib/brand/palette';
 import { getFontPairing } from '../lib/brand/typography';
 import { generateSocialKit } from '../lib/brand/socialKit';
@@ -67,18 +67,13 @@ async function main() {
   console.log(`  Domain: ${session.domainName}, Tone: ${signals.tone}, Style: ${concept.style}`);
   console.log(`  Original URL: ${concept.originalUrl}`);
 
-  // Step 2: Remove background
-  console.log('\n2/10 Removing background (fal.ai rembg)...');
-  const noBgUrl = await removeBackground(concept.originalUrl);
-  console.log(`  No-bg URL: ${noBgUrl}`);
-
-  // Step 3: Upscale
-  console.log('\n3/10 Upscaling 2x (fal.ai esrgan)...');
-  const upscaledUrl = await upscaleImage(noBgUrl);
+  // Step 2: Upscale 2x
+  console.log('\n2/10 Upscaling 2x (fal.ai esrgan)...');
+  const upscaledUrl = await upscaleImage(concept.originalUrl);
   console.log(`  Upscaled URL: ${upscaledUrl}`);
 
-  // Step 4: Download to buffer
-  console.log('\n4/10 Downloading high-res PNG...');
+  // Step 3: Download high-res PNG (skip bg removal — rembg destroys logo text)
+  console.log('\n3/10 Downloading high-res PNG...');
   const logoPngBuffer = await downloadToBuffer(upscaledUrl);
   console.log(`  Buffer size: ${(logoPngBuffer.length / 1024).toFixed(1)}KB`);
 

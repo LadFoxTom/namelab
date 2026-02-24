@@ -1,6 +1,6 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
-import { removeBackground, upscaleImage, downloadToBuffer, vectorizeToSvg } from '@/lib/brand/postprocess';
+import { upscaleImage, downloadToBuffer, vectorizeToSvg } from '@/lib/brand/postprocess';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { generateSocialKit } from '@/lib/brand/socialKit';
@@ -35,10 +35,9 @@ export const generateBrandAssets = inngest.createFunction(
       return { originalUrl: concept.originalUrl, tone: sessionSignals.tone as string, signals: sessionSignals };
     });
 
-    // Step 2: Process through fal.ai (returns URLs, safe to serialize)
+    // Step 2: Upscale (skip bg removal — rembg destroys logo text on white backgrounds)
     const upscaledUrl = await step.run('process-image', async () => {
-      const noBgUrl = await removeBackground(originalUrl);
-      return upscaleImage(noBgUrl);
+      return upscaleImage(originalUrl);
     });
 
     // Step 3: Generate all assets in one step (heavy Buffer work, no serialization needed)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { removeBackground, upscaleImage, downloadToBuffer, vectorizeToSvg } from '@/lib/brand/postprocess';
+import { upscaleImage, downloadToBuffer, vectorizeToSvg } from '@/lib/brand/postprocess';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { generateSocialKit } from '@/lib/brand/socialKit';
@@ -25,13 +25,10 @@ export async function POST(req: NextRequest) {
     const concept = await prisma.brandConcept.findUniqueOrThrow({ where: { id: conceptId } });
     const signals = session.signals as unknown as BrandSignals;
 
-    // 1. Remove background
-    const noBgUrl = await removeBackground(concept.originalUrl);
+    // 1. Upscale 2x (keep white background — rembg destroys logo text)
+    const upscaledUrl = await upscaleImage(concept.originalUrl);
 
-    // 2. Upscale 2x
-    const upscaledUrl = await upscaleImage(noBgUrl);
-
-    // 3. Download high-res PNG
+    // 2. Download high-res PNG
     const logoPngBuffer = await downloadToBuffer(upscaledUrl);
 
     // 4. Vectorize to SVG (fallback if no API key)
