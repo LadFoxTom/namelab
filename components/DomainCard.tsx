@@ -129,25 +129,29 @@ export default function DomainCard({ domain, index, onMoreLikeThis, onLoginPromp
       .catch(() => {});
   }, [baseName]);
 
-  const checkTrademark = async () => {
+  useEffect(() => {
+    if (!hasScores) return;
     setTrademarkStatus("loading");
-    try {
-      const res = await fetch("/api/trademark", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain: domain.domain }),
-      });
-      const data = await res.json();
-      if (data.success && data.result) {
-        setTrademarkRisk(data.result.risk);
-      } else {
+    fetch("/api/trademark", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain: domain.domain }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.result) {
+          setTrademarkRisk(data.result.risk);
+        } else {
+          setTrademarkRisk("error");
+        }
+      })
+      .catch(() => {
         setTrademarkRisk("error");
-      }
-    } catch {
-      setTrademarkRisk("error");
-    }
-    setTrademarkStatus("done");
-  };
+      })
+      .finally(() => {
+        setTrademarkStatus("done");
+      });
+  }, [domain.domain, hasScores]);
 
   return (
     <div
@@ -272,24 +276,13 @@ export default function DomainCard({ domain, index, onMoreLikeThis, onLoginPromp
         {/* Trademark check */}
         {hasScores && (
           <div className="mb-4">
-            {trademarkStatus === "idle" && (
-              <button
-                onClick={checkTrademark}
-                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-purple-600 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                Check Trademark
-              </button>
-            )}
             {trademarkStatus === "loading" && (
               <div className="flex items-center gap-1.5 text-xs text-gray-400">
                 <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Checking...
+                Checking trademark...
               </div>
             )}
             {trademarkStatus === "done" && trademarkRisk && trademarkRisk !== "error" && (
