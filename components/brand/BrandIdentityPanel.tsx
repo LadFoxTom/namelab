@@ -21,6 +21,30 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
   const [signals, setSignals] = useState<any>(null);
   const [selectedConceptId, setSelectedConceptId] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = useCallback(async () => {
+    const concept = concepts.find((c: any) => c.id === selectedConceptId);
+    if (!concept) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(concept.previewUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${domainName}${tld}-${concept.style}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // Fallback: open in new tab
+      window.open(concept.previewUrl, '_blank');
+    } finally {
+      setDownloading(false);
+    }
+  }, [concepts, selectedConceptId, domainName, tld]);
 
   const startGeneration = useCallback(async (preferences: BrandPreferences) => {
     setState('generating');
@@ -166,15 +190,13 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
       />
 
       <div className="mt-6 flex gap-3">
-        <a
-          href={concepts.find((c: any) => c.id === selectedConceptId)?.previewUrl}
-          download={`${domainName}${tld}-logo.jpg`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`flex-1 text-center bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-purple-200/50 transition-all duration-200 ${!selectedConceptId ? 'opacity-40 pointer-events-none' : ''}`}
+        <button
+          onClick={handleDownload}
+          disabled={!selectedConceptId || downloading}
+          className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-purple-200/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
         >
-          Download logo
-        </a>
+          {downloading ? 'Downloading...' : 'Download logo'}
+        </button>
         <button
           onClick={() => setState('briefing')}
           className="px-4 py-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors text-sm"
