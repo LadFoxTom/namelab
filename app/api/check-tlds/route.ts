@@ -12,8 +12,7 @@ import {
   SiteStatus,
   SiteCategory,
 } from "@/lib/types";
-
-const TLDS = [".com", ".io", ".ai", ".co", ".net", ".app", ".nl", ".dev", ".xyz", ".org"];
+import { DEFAULT_TLDS, TLD_REGISTRY } from "@/lib/tlds";
 
 const PARKING_PATTERNS = [
   /this domain is for sale/i,
@@ -118,7 +117,11 @@ export async function GET(request: NextRequest) {
   }
 
   const baseName = name.toLowerCase();
-  const domainNames = TLDS.map((tld) => `${baseName}${tld}`);
+  const tldsParam = searchParams.get("tlds");
+  const requestedTlds = tldsParam
+    ? tldsParam.split(",").filter((t) => TLD_REGISTRY.some((e) => e.tld === t))
+    : DEFAULT_TLDS;
+  const domainNames = requestedTlds.map((tld) => `${baseName}${tld}`);
 
   // Check availability across all registrars in parallel
   const [namecheapResults, godaddyResults, namesiloResults] =

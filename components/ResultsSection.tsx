@@ -5,16 +5,7 @@ import DomainCard from "./DomainCard";
 import LoginModal from "./LoginModal";
 import { DomainResult } from "@/lib/types";
 
-const TLD_FILTERS = [
-  { label: "All", value: "all" },
-  { label: ".com", value: ".com" },
-  { label: ".io", value: ".io" },
-  { label: ".ai", value: ".ai" },
-  { label: ".co", value: ".co" },
-  { label: ".nl", value: ".nl" },
-  { label: ".net", value: ".net" },
-  { label: ".app", value: ".app" },
-];
+// TLD filters are derived dynamically from results
 
 type SortOption = "score" | "price" | "name";
 
@@ -146,9 +137,7 @@ export default function ResultsSection({
       <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-6 sm:mb-10">
         {/* TLD filters */}
         <div className="flex flex-wrap gap-2">
-          {TLD_FILTERS.filter(
-            (f) => f.value === "all" || availableTlds.has(f.value)
-          ).map((filter) => (
+          {[{ label: "All", value: "all" }, ...Array.from(availableTlds).sort().map((tld) => ({ label: tld, value: tld }))].map((filter) => (
             <button
               key={filter.value}
               onClick={() => setActiveTld(filter.value)}

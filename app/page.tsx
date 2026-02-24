@@ -7,8 +7,7 @@ import ResultsSection from "@/components/ResultsSection";
 import FeaturesSection from "@/components/FeaturesSection";
 import Footer from "@/components/Footer";
 import { DomainResult, GenerateResponse, ToneFilter, StructureFilter, LengthPreset, StreamEvent } from "@/lib/types";
-
-const ALL_TLDS = [".com", ".io", ".ai", ".co", ".net", ".app", ".nl", ".dev", ".xyz"];
+import { useTldPreferences } from "@/components/TldPreferencesContext";
 const SESSION_KEY = "sparkdomain-results";
 
 export interface SearchProgress {
@@ -41,13 +40,14 @@ function loadSession() {
 }
 
 export default function Home() {
+  const { enabledTlds } = useTldPreferences();
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [domains, setDomains] = useState<DomainResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [domainCount, setDomainCount] = useState<number>(6);
-  const [selectedTlds, setSelectedTlds] = useState<string[]>([...ALL_TLDS]);
+  const [selectedTlds, setSelectedTlds] = useState<string[]>([...enabledTlds]);
   const [includeWords, setIncludeWords] = useState<string[]>([]);
   const [excludeWords, setExcludeWords] = useState<string[]>([]);
   const [minLength, setMinLength] = useState<number | undefined>(undefined);
@@ -242,7 +242,7 @@ export default function Home() {
           setDomainCount={setDomainCount}
           selectedTlds={selectedTlds}
           setSelectedTlds={setSelectedTlds}
-          allTlds={ALL_TLDS}
+          allTlds={enabledTlds}
           includeWords={includeWords}
           setIncludeWords={setIncludeWords}
           excludeWords={excludeWords}

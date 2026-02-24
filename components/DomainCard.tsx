@@ -6,6 +6,7 @@ import { DomainResult } from "@/lib/types";
 import { useCurrency } from "./CurrencyContext";
 import { useSavedDomains } from "./SavedDomainsContext";
 import { useAuth } from "./AuthContext";
+import { useTldPreferences } from "./TldPreferencesContext";
 import { formatPrice } from "@/lib/currency";
 
 interface DomainCardProps {
@@ -103,6 +104,7 @@ export default function DomainCard({ domain, index, onMoreLikeThis, onLoginPromp
   const { currency } = useCurrency();
   const { user } = useAuth();
   const { isSaved, toggleSave } = useSavedDomains();
+  const { enabledTlds } = useTldPreferences();
   const saved = isSaved(domain.domain);
 
   const linguisticScore = domain.lqsScore ?? domain.memorabilityScore;
@@ -119,7 +121,7 @@ export default function DomainCard({ domain, index, onMoreLikeThis, onLoginPromp
   const [tldInfo, setTldInfo] = useState<{ available: number; total: number } | null>(null);
 
   useEffect(() => {
-    fetch(`/api/check-tlds-quick?name=${encodeURIComponent(baseName)}`)
+    fetch(`/api/check-tlds-quick?name=${encodeURIComponent(baseName)}&tlds=${enabledTlds.join(",")}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.availableCount !== undefined) {
@@ -127,7 +129,7 @@ export default function DomainCard({ domain, index, onMoreLikeThis, onLoginPromp
         }
       })
       .catch(() => {});
-  }, [baseName]);
+  }, [baseName, enabledTlds]);
 
   useEffect(() => {
     if (!hasScores) return;

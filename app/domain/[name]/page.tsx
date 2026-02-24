@@ -9,6 +9,7 @@ import TldVariationRow from "@/components/TldVariationRow";
 import LoginModal from "@/components/LoginModal";
 import { TldVariation, TldCheckResponse } from "@/lib/types";
 import { useSavedDomains } from "@/components/SavedDomainsContext";
+import { useTldPreferences } from "@/components/TldPreferencesContext";
 
 function ScoreBar({
   label,
@@ -89,6 +90,7 @@ export default function DomainDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   const { checkSaved } = useSavedDomains();
+  const { enabledTlds } = useTldPreferences();
 
   const domainMeta = reasoning && namingStrategy && hasScores
     ? {
@@ -105,15 +107,14 @@ export default function DomainDetailPage() {
       setLoading(true);
       try {
         const res = await fetch(
-          `/api/check-tlds?name=${encodeURIComponent(name)}`
+          `/api/check-tlds?name=${encodeURIComponent(name)}&tlds=${enabledTlds.join(",")}`
         );
         const data: TldCheckResponse = await res.json();
         if (data.success) {
-          // Sort: available first, then by TLD preference
-          const tldOrder = [".com", ".io", ".ai", ".co", ".net", ".app", ".nl", ".dev", ".xyz", ".org"];
+          // Sort: available first, then by user's TLD preference order
           const sorted = [...data.variations].sort((a, b) => {
             if (a.available !== b.available) return a.available ? -1 : 1;
-            return tldOrder.indexOf(a.tld) - tldOrder.indexOf(b.tld);
+            return enabledTlds.indexOf(a.tld) - enabledTlds.indexOf(b.tld);
           });
           setVariations(sorted);
           // Check saved status for all domains
@@ -129,7 +130,7 @@ export default function DomainDetailPage() {
     }
 
     if (name) fetchVariations();
-  }, [name]);
+  }, [name, enabledTlds]);
 
   const availableCount = variations.filter((v) => v.available).length;
   const takenCount = variations.filter((v) => !v.available).length;

@@ -1,33 +1,8 @@
 import { ProviderResult } from "./types";
+import { getTldPricing, getRdapServers } from "./tlds";
 
-// Static pricing table based on Namecheap registration prices (USD/yr)
-// Update periodically — these change infrequently
-const TLD_PRICING: Record<string, number> = {
-  com: 10.98,
-  net: 11.98,
-  org: 7.48,
-  io: 34.98,
-  ai: 79.98,
-  co: 12.48,
-  app: 12.98,
-  dev: 12.98,
-  nl: 7.48,
-  xyz: 2.0,
-};
-
-// RDAP servers per TLD for availability lookups (free, no auth, no IP whitelist)
-const RDAP_SERVERS: Record<string, string> = {
-  com: "https://rdap.verisign.com/com/v1",
-  net: "https://rdap.verisign.com/net/v1",
-  org: "https://rdap.org.zwrcgl.com/org/v1",
-  io: "https://rdap.nic.io/v1",
-  ai: "https://rdap.nic.ai/v1",
-  co: "https://rdap.nic.co/v1",
-  app: "https://rdap.nic.google/v1",
-  dev: "https://rdap.nic.google/v1",
-  nl: "https://rdap.sidn.nl/v1",
-  xyz: "https://rdap.nic.xyz/v1",
-};
+const TLD_PRICING = getTldPricing();
+const RDAP_SERVERS = getRdapServers();
 
 async function checkDomainRdap(domain: string): Promise<boolean | null> {
   const tld = domain.split(".").pop()?.toLowerCase() || "";

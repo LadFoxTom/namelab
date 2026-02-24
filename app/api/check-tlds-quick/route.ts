@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkNamecheapAvailability } from "@/lib/namecheap";
-
-const TLDS = [".com", ".io", ".ai", ".co", ".net", ".app", ".nl", ".dev", ".xyz", ".org"];
+import { checkGoDaddyAvailability } from "@/lib/godaddy";
+import { DEFAULT_TLDS, TLD_REGISTRY } from "@/lib/tlds";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -15,28 +15,49 @@ export async function GET(request: NextRequest) {
   }
 
   const baseName = name.toLowerCase();
-  const domainNames = TLDS.map((tld) => `${baseName}${tld}`);
+  const tldsParam = searchParams.get("tlds");
+  const requestedTlds = tldsParam
+    ? tldsParam.split(",").filter((t) => TLD_REGISTRY.some((e) => e.tld === t))
+    : DEFAULT_TLDS;
+  const domainNames = requestedTlds.map((tld) => `${baseName}${tld}`);
 
-  const results = await checkNamecheapAvailability(domainNames);
+  // Check RDAP first, then use GoDaddy as fallback for domains RDAP couldn't resolve
+  const rdapResults = await checkNamecheapAvailability(domainNames);
 
-  const availabilityMap = new Map(
-    results.map((r) => [r.domain.toLowerCase(), r.available])
+  const availabilityMap = new Map<string, boolean>();
+  for (const r of rdapResults) {
+    availabilityMap.set(r.domain.toLowerCase(), r.available);
+  }
+
+  // Find domains that RDAP failed to check (unreliable servers like .io)
+  const uncheckedDomains = domainNames.filter(
+    (d) => !availabilityMap.has(d.toLowerCase())
   );
 
-  const tlds = TLDS.map((tld) => {
+  if (uncheckedDomains.length > 0) {
+    const fallbackResults = await checkGoDaddyAvailability(uncheckedDomains);
+    for (const r of fallbackResults) {
+      availabilityMap.set(r.domain.toLowerCase(), r.available);
+    }
+  }
+
+  const tlds = requestedTlds.map((tld) => {
     const domain = `${baseName}${tld}`;
+    const available = availabilityMap.get(domain);
     return {
       tld,
-      available: availabilityMap.get(domain) ?? false,
+      available: available ?? null,
     };
   });
 
-  const availableCount = tlds.filter((t) => t.available).length;
+  // Only count domains we could actually check
+  const checked = tlds.filter((t) => t.available !== null);
+  const availableCount = checked.filter((t) => t.available === true).length;
 
   return NextResponse.json({
     baseName,
     tlds,
     availableCount,
-    totalCount: TLDS.length,
+    totalCount: checked.length,
   });
 }
