@@ -114,6 +114,7 @@ export default function Home() {
       // Streaming generation mode
       setDomains([]);
       setHasSearched(true);
+      localStorage.setItem("sparkdomain_last_query", input);
 
       const payload = {
         businessIdea: input,

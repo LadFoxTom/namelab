@@ -10,6 +10,7 @@ import LoginModal from "@/components/LoginModal";
 import { TldVariation, TldCheckResponse } from "@/lib/types";
 import { useSavedDomains } from "@/components/SavedDomainsContext";
 import { useTldPreferences } from "@/components/TldPreferencesContext";
+import { BrandIdentityPanel } from "@/components/brand/BrandIdentityPanel";
 
 function ScoreBar({
   label,
@@ -91,6 +92,19 @@ export default function DomainDetailPage() {
   const [showLogin, setShowLogin] = useState(false);
   const { checkSaved } = useSavedDomains();
   const { enabledTlds } = useTldPreferences();
+
+  // Brand identity: get search query and anonymous ID
+  const [searchQuery, setSearchQuery] = useState("");
+  const [anonymousId, setAnonymousId] = useState("");
+  useEffect(() => {
+    setSearchQuery(localStorage.getItem("sparkdomain_last_query") || name);
+    let anonId = localStorage.getItem("sparkdomain_anon_id");
+    if (!anonId) {
+      anonId = crypto.randomUUID();
+      localStorage.setItem("sparkdomain_anon_id", anonId);
+    }
+    setAnonymousId(anonId);
+  }, [name]);
 
   const domainMeta = reasoning && namingStrategy && hasScores
     ? {
@@ -302,6 +316,16 @@ export default function DomainDetailPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Brand Identity Section */}
+        {!loading && anonymousId && (
+          <BrandIdentityPanel
+            domainName={name}
+            tld={originalTld || ".com"}
+            searchQuery={searchQuery}
+            anonymousId={anonymousId}
+          />
         )}
       </main>
 

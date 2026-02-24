@@ -109,3 +109,76 @@ model TrademarkCache {
 
   @@index([domainName])
 }
+
+// Brand Identity Feature
+model BrandSession {
+  id          String        @id @default(cuid())
+  domainName  String
+  tld         String
+  searchQuery String
+  userId      String?
+  anonymousId String?
+  signals     Json
+  status      BrandStatus   @default(PENDING)
+  concepts    BrandConcept[]
+  purchases   BrandPurchase[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([domainName])
+  @@index([anonymousId])
+}
+
+model BrandConcept {
+  id              String       @id @default(cuid())
+  brandSessionId  String
+  brandSession    BrandSession @relation(fields: [brandSessionId], references: [id], onDelete: Cascade)
+  style           String
+  previewUrl      String
+  originalUrl     String
+  isSelected      Boolean      @default(false)
+  generationIndex Int
+  promptUsed      String       @db.Text
+  createdAt       DateTime     @default(now())
+
+  @@index([brandSessionId])
+}
+
+model BrandPurchase {
+  id                    String         @id @default(cuid())
+  brandSessionId        String
+  brandSession          BrandSession   @relation(fields: [brandSessionId], references: [id])
+  tier                  PurchaseTier
+  stripePaymentIntentId String         @unique
+  stripeSessionId       String?
+  status                PurchaseStatus @default(PENDING)
+  downloadUrl           String?
+  downloadExpiresAt     DateTime?
+  zipR2Key              String?
+  email                 String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([stripePaymentIntentId])
+}
+
+enum BrandStatus {
+  PENDING
+  GENERATING
+  READY
+  FAILED
+}
+
+enum PurchaseTier {
+  LOGO_ONLY
+  BRAND_KIT
+  BRAND_KIT_PRO
+}
+
+enum PurchaseStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
