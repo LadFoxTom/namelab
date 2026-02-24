@@ -15,6 +15,26 @@ model User {
   createdAt    DateTime      @default(now())
   searches     Search[]
   subscription Subscription?
+  savedDomains SavedDomain[]
+}
+
+model SavedDomain {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  domain           String
+  reasoning        String
+  namingStrategy   String
+  brandabilityScore Int
+  memorabilityScore Int
+  seoScore         Int
+  lqsScore         Int?
+  providers        Json
+  cheapestProvider Json?
+  savedAt          DateTime @default(now())
+
+  @@unique([userId, domain])
+  @@index([userId])
 }
 
 model Subscription {

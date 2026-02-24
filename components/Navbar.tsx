@@ -5,6 +5,7 @@ import Link from "next/link";
 import LoginModal from "./LoginModal";
 import { useAuth } from "./AuthContext";
 import { useCurrency } from "./CurrencyContext";
+import { useSavedDomains } from "./SavedDomainsContext";
 import { CURRENCIES, Currency } from "@/lib/currency";
 
 export default function Navbar() {
@@ -12,6 +13,7 @@ export default function Navbar() {
   const [modalTab, setModalTab] = useState<"login" | "signup">("login");
   const { user, loading, logout } = useAuth();
   const { currency, setCurrency } = useCurrency();
+  const { savedCount } = useSavedDomains();
 
   const openLogin = () => {
     setModalTab("login");
@@ -74,6 +76,20 @@ export default function Navbar() {
 
             {!loading && user && (
               <div className="flex items-center gap-3">
+                <Link
+                  href="/saved"
+                  className="relative p-2 rounded-full hover:bg-purple-50 transition-colors"
+                  title="Saved domains"
+                >
+                  <svg className="w-5 h-5 text-gray-500 hover:text-purple-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                  {savedCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {savedCount > 99 ? "99+" : savedCount}
+                    </span>
+                  )}
+                </Link>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xs font-bold">
                     {(user.name?.[0] || user.email[0]).toUpperCase()}

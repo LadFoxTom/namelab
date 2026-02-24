@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import DomainCard from "./DomainCard";
+import LoginModal from "./LoginModal";
 import { DomainResult } from "@/lib/types";
 
 const TLD_FILTERS = [
@@ -48,6 +49,7 @@ export default function ResultsSection({
 }: ResultsSectionProps) {
   const [activeTld, setActiveTld] = useState("all");
   const [sortBy, setSortBy] = useState<SortOption>("score");
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const filtered = domains
     .filter((d) => {
@@ -197,6 +199,7 @@ export default function ResultsSection({
             domain={domain}
             index={index}
             onMoreLikeThis={() => onMoreLikeThis(domain)}
+            onLoginPrompt={() => setShowLoginModal(true)}
           />
         ))}
       </div>
@@ -213,6 +216,13 @@ export default function ResultsSection({
             Clear filter
           </button>
         </div>
+      )}
+
+      {showLoginModal && (
+        <LoginModal
+          onClose={() => setShowLoginModal(false)}
+          initialTab="signup"
+        />
       )}
     </section>
   );

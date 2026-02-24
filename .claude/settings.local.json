@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@14:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx next build:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(npm run dev:*)",
+      "Bash(findstr:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: AI Domain Name Generator \\(Namer.ai\\)\n\nNext.js 14 app with OpenAI domain generation, Namecheap availability\nchecking, Prisma/PostgreSQL database, Stripe subscription support,\nand affiliate link tracking.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(taskkill /f /im node.exe)",
+      "Bash(curl:*)",
+      "Bash(dir:*)",
+      "Bash(netstat:*)",
+      "Bash(python:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(cd /c/domeincheck && npx next dev --port 3088 2>&1)",
+      "Bash(python3:*)",
+      "Bash(node:*)",
+      "Bash(cd:*)",
+      "Bash(head:*)",
+      "Bash(cd /c/domeincheck && npx prisma migrate dev --name add-lqs-and-trademark 2>&1)",
+      "Bash(cd /c/domeincheck && echo \"y\" | npx prisma migrate reset --force 2>&1)",
+      "Bash(cd /c/domeincheck && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma migrate reset --force 2>&1)",
+      "Bash(cd /c/domeincheck && npx prisma migrate dev --name init-with-lqs-and-trademark 2>&1)",
+      "Bash(cd C:/domeincheck && npx prisma migrate dev --name add-saved-domains 2>&1)",
+      "Bash(taskkill:*)"
+    ]
+  }
+}

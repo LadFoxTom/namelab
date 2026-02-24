@@ -4,12 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { DomainResult } from "@/lib/types";
 import { useCurrency } from "./CurrencyContext";
+import { useSavedDomains } from "./SavedDomainsContext";
+import { useAuth } from "./AuthContext";
 import { formatPrice } from "@/lib/currency";
 
 interface DomainCardProps {
   domain: DomainResult;
   index: number;
   onMoreLikeThis?: () => void;
+  onLoginPrompt?: () => void;
 }
 
 function getScoreColor(score: number): string {
@@ -93,11 +96,14 @@ async function trackClick(
   window.open(affiliateUrl, "_blank", "noopener,noreferrer");
 }
 
-export default function DomainCard({ domain, index, onMoreLikeThis }: DomainCardProps) {
+export default function DomainCard({ domain, index, onMoreLikeThis, onLoginPrompt }: DomainCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [trademarkStatus, setTrademarkStatus] = useState<"idle" | "loading" | "done">("idle");
   const [trademarkRisk, setTrademarkRisk] = useState<string | null>(null);
   const { currency } = useCurrency();
+  const { user } = useAuth();
+  const { isSaved, toggleSave } = useSavedDomains();
+  const saved = isSaved(domain.domain);
 
   const linguisticScore = domain.lqsScore ?? domain.memorabilityScore;
   const hasScores = domain.brandabilityScore > 0 || linguisticScore > 0 || domain.seoScore > 0;
@@ -167,16 +173,39 @@ export default function DomainCard({ domain, index, onMoreLikeThis }: DomainCard
               </Link>
             </div>
           </div>
-          {hasScores && <div className="flex flex-col items-center shrink-0">
-            <div
-              className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center text-lg sm:text-2xl font-light text-white shadow-sm ${scoreColor}`}
+          <div className="flex items-start gap-2 shrink-0">
+            <button
+              onClick={() => {
+                if (!user) {
+                  onLoginPrompt?.();
+                } else {
+                  toggleSave(domain);
+                }
+              }}
+              className="p-1.5 rounded-full hover:bg-purple-50 transition-colors"
+              title={saved ? "Remove from saved" : "Save domain"}
             >
-              <span>{avgScore}</span>
-            </div>
-            <Link href="/scoring" className="text-[10px] uppercase tracking-wider text-gray-400 mt-1 font-medium hover:text-purple-500 transition-colors cursor-pointer">
-              Score
-            </Link>
-          </div>}
+              {saved ? (
+                <svg className="w-5 h-5 text-purple-500" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 text-gray-300 hover:text-purple-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              )}
+            </button>
+            {hasScores && <div className="flex flex-col items-center">
+              <div
+                className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center text-lg sm:text-2xl font-light text-white shadow-sm ${scoreColor}`}
+              >
+                <span>{avgScore}</span>
+              </div>
+              <Link href="/scoring" className="text-[10px] uppercase tracking-wider text-gray-400 mt-1 font-medium hover:text-purple-500 transition-colors cursor-pointer">
+                Score
+              </Link>
+            </div>}
+          </div>
         </div>
 
         {hasScores && (
