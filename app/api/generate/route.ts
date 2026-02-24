@@ -17,6 +17,9 @@ import {
   StreamEvent,
 } from "@/lib/types";
 
+// Allow up to 180s on Vercel Pro (Hobby: 10s, Pro: 60s default, max 300s)
+export const maxDuration = 180;
+
 const TIME_LIMIT_MS = 180_000; // 3 minutes
 
 function sseEncode(event: StreamEvent): string {
