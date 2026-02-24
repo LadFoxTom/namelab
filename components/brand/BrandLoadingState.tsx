@@ -2,6 +2,7 @@
 
 interface BrandLoadingStateProps {
   progress: string | null;
+  onCancel: () => void;
 }
 
 const STEPS = [
@@ -10,7 +11,7 @@ const STEPS = [
   { key: 'processing_previews', label: 'Processing and preparing previews...' },
 ];
 
-export function BrandLoadingState({ progress }: BrandLoadingStateProps) {
+export function BrandLoadingState({ progress, onCancel }: BrandLoadingStateProps) {
   const currentIndex = STEPS.findIndex((s) => s.key === progress);
 
   return (
@@ -37,7 +38,15 @@ export function BrandLoadingState({ progress }: BrandLoadingStateProps) {
           </div>
         ))}
       </div>
-      <p className="text-xs text-gray-400 mt-4">This usually takes 15-30 seconds</p>
+      <div className="flex items-center justify-between mt-4">
+        <p className="text-xs text-gray-400">This usually takes 15-30 seconds</p>
+        <button
+          onClick={onCancel}
+          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

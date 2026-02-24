@@ -50,7 +50,16 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
   useEffect(() => {
     if (!sessionId || state !== 'generating') return;
 
+    const startedAt = Date.now();
+    const TIMEOUT_MS = 90_000; // 90 seconds
+
     const interval = setInterval(async () => {
+      if (Date.now() - startedAt > TIMEOUT_MS) {
+        setState('failed');
+        clearInterval(interval);
+        return;
+      }
+
       try {
         const res = await fetch(`/api/brand/status?sessionId=${sessionId}`);
         const data = await res.json();
@@ -113,7 +122,7 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
   }
 
   if (state === 'initializing' || state === 'generating') {
-    return <BrandLoadingState progress={progress} />;
+    return <BrandLoadingState progress={progress} onCancel={() => setState('briefing')} />;
   }
 
   if (state === 'failed') {
