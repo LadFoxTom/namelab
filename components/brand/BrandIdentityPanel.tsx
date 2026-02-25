@@ -162,7 +162,7 @@ export function BrandIdentityPanel({
     if (!sessionId || state !== 'generating') return;
 
     const startedAt = Date.now();
-    const TIMEOUT_MS = 90_000; // 90 seconds
+    const TIMEOUT_MS = 180_000; // 3 minutes — Inngest steps take ~90-120s total
 
     const interval = setInterval(async () => {
       if (Date.now() - startedAt > TIMEOUT_MS) {

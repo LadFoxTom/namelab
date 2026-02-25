@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-const STALE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+const STALE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes — Inngest steps with retries can take a while
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('sessionId');
