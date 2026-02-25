@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { LogoConceptGrid } from './LogoConceptGrid';
 import { BrandLoadingState } from './BrandLoadingState';
 import { BrandBriefForm, BrandPreferences } from './BrandBriefForm';
@@ -10,11 +10,22 @@ interface BrandIdentityPanelProps {
   tld: string;
   searchQuery: string;
   anonymousId: string;
+  initialSessionId?: string;
+  autoStart?: boolean;
 }
 
-type PanelState = 'idle' | 'briefing' | 'initializing' | 'generating' | 'ready' | 'failed';
+type PanelState = 'idle' | 'restoring' | 'briefing' | 'initializing' | 'generating' | 'ready' | 'failed';
 
-export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }: BrandIdentityPanelProps) {
+const STORAGE_KEY_PREFIX = 'brand_session_';
+
+export function BrandIdentityPanel({
+  domainName,
+  tld,
+  searchQuery,
+  anonymousId,
+  initialSessionId,
+  autoStart,
+}: BrandIdentityPanelProps) {
   const [state, setState] = useState<PanelState>('idle');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [concepts, setConcepts] = useState<any[]>([]);
@@ -24,6 +35,44 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
   const [downloading, setDownloading] = useState(false);
   const [buildingKit, setBuildingKit] = useState(false);
   const [kitError, setKitError] = useState<string | null>(null);
+  const restoredRef = useRef(false);
+
+  // Restore session on mount
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+
+    const storageKey = `${STORAGE_KEY_PREFIX}${domainName}${tld}`;
+    const restoreId = initialSessionId || localStorage.getItem(storageKey);
+
+    if (!restoreId) {
+      if (autoStart) setState('briefing');
+      return;
+    }
+
+    setState('restoring');
+    fetch(`/api/brand/status?sessionId=${restoreId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.status === 'READY') {
+          setSessionId(restoreId);
+          setConcepts(data.concepts);
+          setSignals(data.signals);
+          setState('ready');
+        } else if (data.status === 'GENERATING') {
+          setSessionId(restoreId);
+          setState('generating');
+        } else {
+          // Session failed or not found — start fresh
+          localStorage.removeItem(storageKey);
+          setState(autoStart ? 'briefing' : 'idle');
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem(storageKey);
+        setState(autoStart ? 'briefing' : 'idle');
+      });
+  }, [domainName, tld, initialSessionId, autoStart]);
 
   const handleDownloadLogo = useCallback(async () => {
     const concept = concepts.find((c: any) => c.id === selectedConceptId);
@@ -94,6 +143,9 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
       });
       const data = await res.json();
       setSessionId(data.sessionId);
+
+      // Persist sessionId to localStorage
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}${domainName}${tld}`, data.sessionId);
 
       if (!res.ok || data.status === 'FAILED') {
         setState('failed');
@@ -174,6 +226,18 @@ export function BrandIdentityPanel({ domainName, tld, searchQuery, anonymousId }
         >
           Generate brand identity — Free preview
         </button>
+      </div>
+    );
+  }
+
+  if (state === 'restoring') {
+    return (
+      <div className="mt-8 flex items-center justify-center py-12">
+        <svg className="animate-spin h-6 w-6 text-purple-500 mr-3" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <span className="text-sm text-gray-500">Loading your brand...</span>
       </div>
     );
   }

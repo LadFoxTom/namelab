@@ -6,6 +6,7 @@ import { pregeneratePalette } from '@/lib/brand/palettePregen';
 import { downloadToBuffer } from '@/lib/brand/postprocess';
 import { applyWatermark } from '@/lib/brand/watermark';
 import { uploadToR2 } from '@/lib/brand/storage';
+import { getSession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -17,12 +18,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
+  const sessionUser = await getSession();
+
   const session = await prisma.brandSession.create({
     data: {
       domainName,
       tld: tld ?? '.com',
       searchQuery,
       anonymousId: anonymousId ?? null,
+      userId: sessionUser?.id ?? null,
       signals: {},
       status: 'GENERATING',
       progress: 'extracting_signals',

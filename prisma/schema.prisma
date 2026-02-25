@@ -116,18 +116,21 @@ model BrandSession {
   domainName  String
   tld         String
   searchQuery String
-  userId      String?
-  anonymousId String?
-  signals     Json
-  progress    String?
-  status      BrandStatus   @default(PENDING)
-  concepts    BrandConcept[]
-  purchases   BrandPurchase[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  userId        String?
+  anonymousId   String?
+  signals       Json
+  progress      String?
+  status        BrandStatus   @default(PENDING)
+  showInGallery Boolean       @default(true)
+  concepts      BrandConcept[]
+  purchases     BrandPurchase[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@index([domainName])
   @@index([anonymousId])
+  @@index([userId])
+  @@index([showInGallery, status])
 }
 
 model BrandConcept {
