@@ -152,17 +152,8 @@ export function BrandIdentityPanel({
         return;
       }
 
-      // Generation completes synchronously — fetch concepts directly
-      const statusRes = await fetch(`/api/brand/status?sessionId=${data.sessionId}`);
-      const statusData = await statusRes.json();
-      if (statusData.status === 'READY') {
-        setConcepts(statusData.concepts);
-        setSignals(statusData.signals);
-        setState('ready');
-      } else {
-        // Fallback to polling if not ready yet
-        setState('generating');
-      }
+      // Generation runs in background via Inngest — polling effect will pick it up
+      setState('generating');
     } catch {
       setState('failed');
     }
