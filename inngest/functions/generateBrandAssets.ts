@@ -1,6 +1,6 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
-import { upscaleImage, downloadToBuffer, vectorizeToSvg } from '@/lib/brand/postprocess';
+import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground } from '@/lib/brand/postprocess';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { generateSocialKit } from '@/lib/brand/socialKit';
@@ -43,6 +43,7 @@ export const generateBrandAssets = inngest.createFunction(
     // Step 3: Generate all assets in one step (heavy Buffer work, no serialization needed)
     const { zipKey, downloadUrl: dlUrl } = await step.run('generate-and-package', async () => {
       const logoPngBuffer = await downloadToBuffer(upscaledUrl);
+      const logoPngTransparent = await removeWhiteBackground(logoPngBuffer);
       const logoSvg = await vectorizeToSvg(logoPngBuffer);
       const palette = await extractBrandPalette(logoPngBuffer);
       const fonts = getFontPairing(tone as any);
@@ -51,13 +52,14 @@ export const generateBrandAssets = inngest.createFunction(
       let socialKit = undefined;
       let brandPdf = undefined;
       if (tier !== 'LOGO_ONLY') {
-        socialKit = await generateSocialKit(logoPngBuffer, palette.primary);
+        socialKit = await generateSocialKit(logoPngBuffer, palette, signals, domainName);
         brandPdf = await generateBrandPdf(domainName, signals, logoPngBuffer, logoSvg, palette, fonts);
       }
 
       const zipBuffer = await assembleZip({
         domainName,
         logoPng: logoPngBuffer,
+        logoPngTransparent,
         logoSvg,
         palette,
         fonts,

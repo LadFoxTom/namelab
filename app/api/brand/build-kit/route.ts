@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { upscaleImage, downloadToBuffer, vectorizeToSvg } from '@/lib/brand/postprocess';
+import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground } from '@/lib/brand/postprocess';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { generateSocialKit } from '@/lib/brand/socialKit';
@@ -40,6 +40,9 @@ export async function POST(req: NextRequest) {
       logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><text x="50%" y="50%" text-anchor="middle" font-size="48">${session.domainName}</text></svg>`;
     }
 
+    // 4b. Generate transparent-background variant
+    const logoPngTransparent = await removeWhiteBackground(logoPngBuffer);
+
     // 5. Extract palette
     const palette = await extractBrandPalette(logoPngBuffer);
 
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
     let socialKit = undefined;
     let brandPdf = undefined;
     if (tier !== 'LOGO_ONLY') {
-      socialKit = await generateSocialKit(logoPngBuffer, palette.primary);
+      socialKit = await generateSocialKit(logoPngBuffer, palette, signals, session.domainName);
       brandPdf = await generateBrandPdf(session.domainName, signals, logoPngBuffer, logoSvg, palette, fonts);
     }
 
@@ -61,6 +64,7 @@ export async function POST(req: NextRequest) {
     const zipBuffer = await assembleZip({
       domainName: session.domainName,
       logoPng: logoPngBuffer,
+      logoPngTransparent,
       logoSvg,
       palette,
       fonts,

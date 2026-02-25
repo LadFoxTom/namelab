@@ -33,7 +33,7 @@
  */
 
 import { prisma } from '../lib/prisma';
-import { upscaleImage, downloadToBuffer, vectorizeToSvg } from '../lib/brand/postprocess';
+import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground } from '../lib/brand/postprocess';
 import { extractBrandPalette } from '../lib/brand/palette';
 import { getFontPairing } from '../lib/brand/typography';
 import { generateSocialKit } from '../lib/brand/socialKit';
@@ -77,6 +77,11 @@ async function main() {
   const logoPngBuffer = await downloadToBuffer(upscaledUrl);
   console.log(`  Buffer size: ${(logoPngBuffer.length / 1024).toFixed(1)}KB`);
 
+  // Step 4: Generate transparent-background variant
+  console.log('\n4/10 Removing white background...');
+  const logoPngTransparent = await removeWhiteBackground(logoPngBuffer);
+  console.log(`  Transparent PNG size: ${(logoPngTransparent.length / 1024).toFixed(1)}KB`);
+
   // Step 5: Vectorize to SVG
   console.log('\n5/10 Vectorizing to SVG (vectorizer.ai)...');
   let logoSvg: string;
@@ -110,7 +115,7 @@ async function main() {
   if (tier !== 'LOGO_ONLY') {
     // Step 9: Social kit
     console.log('\n9/10 Generating social media kit...');
-    socialKit = await generateSocialKit(logoPngBuffer, palette.primary);
+    socialKit = await generateSocialKit(logoPngBuffer, palette, signals, session.domainName);
     console.log(`  Generated ${socialKit.length} social media assets`);
 
     // Step 10: Brand Guidelines PDF
@@ -127,6 +132,7 @@ async function main() {
   const zipBuffer = await assembleZip({
     domainName: session.domainName,
     logoPng: logoPngBuffer,
+    logoPngTransparent,
     logoSvg,
     palette,
     fonts,

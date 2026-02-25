@@ -137,13 +137,13 @@ export async function generateBrandPdf(
   );
 
   // Section: Minimum size
-  drawSectionLabel(page2, 'Minimum Size', fontBold, 48, height - 530, dark);
+  drawSectionLabel(page2, 'Minimum Size', fontBold, 48, height - 545, dark);
   page2.drawText('Digital: 24px height minimum    Print: 8mm height minimum',
-    { x: 48, y: height - 555, size: 10, font: fontRegular, color: rgb(0.4, 0.4, 0.4) }
+    { x: 48, y: height - 570, size: 10, font: fontRegular, color: rgb(0.4, 0.4, 0.4) }
   );
 
   // Section: Don'ts
-  drawSectionLabel(page2, "Don'ts", fontBold, 48, height - 595, dark);
+  drawSectionLabel(page2, "Don'ts", fontBold, 48, height - 610, dark);
   const donts = [
     'Do not stretch or distort the logo',
     'Do not change the logo colors',
@@ -153,7 +153,7 @@ export async function generateBrandPdf(
   ];
   donts.forEach((dont, i) => {
     page2.drawText(`- ${dont}`, {
-      x: 48, y: height - 620 - (i * 18),
+      x: 48, y: height - 635 - (i * 18),
       size: 10, font: fontRegular,
       color: rgb(0.7, 0.2, 0.2),
     });
@@ -224,7 +224,7 @@ export async function generateBrandPdf(
 
   // CSS variables block
   drawSectionLabel(page3, 'CSS Variables', fontBold, 48, height - 620, dark);
-  page3.drawRectangle({ x: 48, y: height - 750, width: width - 96, height: 110, color: rgb(0.12, 0.12, 0.14) });
+  page3.drawRectangle({ x: 48, y: height - 790, width: width - 96, height: 150, color: rgb(0.12, 0.12, 0.14) });
   page3.drawText(palette.cssVars, {
     x: 64, y: height - 670,
     size: 8, font: fontRegular,
@@ -287,22 +287,35 @@ export async function generateBrandPdf(
   const rulesY = bodyY - 120;
   drawSectionLabel(page4, 'Typography Rules', fontBold, 48, rulesY, dark);
 
+  // Truncate Google Fonts URL to prevent overflow
+  const fontsUrlDisplay = fonts.googleFontsUrl.length > 70
+    ? fonts.googleFontsUrl.slice(0, 67) + '...'
+    : fonts.googleFontsUrl;
+
   const typographyRules = [
     `Heading font (${fonts.heading.name}): Headlines, hero text, section titles, CTAs`,
     `Body font (${fonts.body.name}): Paragraphs, descriptions, UI labels, captions`,
     `Monospace (${fonts.mono.name}): Code samples, technical content, data display`,
     'Minimum body text size: 13px on screen, 9pt in print',
     'Maximum line length: 65-75 characters for optimal readability',
-    `Google Fonts import: ${fonts.googleFontsUrl}`,
+    `Google Fonts: ${fontsUrlDisplay}`,
   ];
 
-  typographyRules.forEach((rule, i) => {
-    page4.drawText(`- ${rule}`, {
-      x: 48, y: rulesY - 24 - (i * 18),
+  // Use dynamic Y tracking to prevent overlap when text wraps
+  const maxTextWidth = width - 96;
+  let currentY = rulesY - 24;
+  typographyRules.forEach((rule) => {
+    const text = `- ${rule}`;
+    page4.drawText(text, {
+      x: 48, y: currentY,
       size: 9, font: fontRegular,
       color: rgb(0.3, 0.3, 0.3),
-      maxWidth: width - 96,
+      maxWidth: maxTextWidth,
     });
+    // Estimate lines needed based on text width
+    const textWidth = fontRegular.widthOfTextAtSize(text, 9);
+    const lines = Math.ceil(textWidth / maxTextWidth);
+    currentY -= lines * 14 + 4;
   });
 
   drawPageFooter(page4, domainName, 'Typography', fontLight, width);
