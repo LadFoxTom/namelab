@@ -141,70 +141,18 @@ export function BrandIdentityPanel({
           preferences,
         }),
       });
+      const data = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || data.status === 'FAILED') {
         setState('failed');
         return;
       }
 
-      // Read streaming response for progress updates
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let receivedSessionId: string | null = null;
-      let finalStatus: string | null = null;
+      setSessionId(data.sessionId);
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}${domainName}${tld}`, data.sessionId);
 
-      if (reader) {
-        let buffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const match = line.match(/^data: (.+)$/);
-            if (!match) continue;
-            try {
-              const data = JSON.parse(match[1]);
-              if (data.sessionId && !receivedSessionId) {
-                receivedSessionId = data.sessionId;
-                setSessionId(data.sessionId);
-                localStorage.setItem(`${STORAGE_KEY_PREFIX}${domainName}${tld}`, data.sessionId);
-              }
-              if (data.progress) setProgress(data.progress);
-              if (data.status) finalStatus = data.status;
-            } catch {
-              // Skip malformed events
-            }
-          }
-        }
-      }
-
-      if (finalStatus === 'READY' && receivedSessionId) {
-        // Fetch concepts from status endpoint
-        const statusRes = await fetch(`/api/brand/status?sessionId=${receivedSessionId}`);
-        const statusData = await statusRes.json();
-        if (statusData.status === 'READY') {
-          setConcepts(statusData.concepts);
-          setSignals(statusData.signals);
-          setState('ready');
-          return;
-        }
-      }
-
-      if (finalStatus === 'FAILED') {
-        setState('failed');
-        return;
-      }
-
-      // Fallback: if stream ended without READY, fall back to polling
-      if (receivedSessionId) {
-        setState('generating');
-      } else {
-        setState('failed');
-      }
+      // Generation runs in background via Inngest — polling effect picks it up
+      setState('generating');
     } catch {
       setState('failed');
     }

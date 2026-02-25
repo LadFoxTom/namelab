@@ -1,11 +1,14 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
 import { extractBrandSignals, BrandSignals } from '@/lib/brand/signals';
-import { generateLogoConcepts } from '@/lib/brand/generate';
+import { generateLogoConcepts, GeneratedConcept } from '@/lib/brand/generate';
 import { pregeneratePalette } from '@/lib/brand/palettePregen';
 import { downloadToBuffer } from '@/lib/brand/postprocess';
 import { applyWatermark } from '@/lib/brand/watermark';
 import { uploadToR2 } from '@/lib/brand/storage';
+import { LogoStyle } from '@/lib/brand/prompts';
+
+const LOGO_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark'];
 
 export const generateBrandPreviews = inngest.createFunction(
   {
@@ -26,7 +29,7 @@ export const generateBrandPreviews = inngest.createFunction(
   async ({ event, step }) => {
     const { brandSessionId, domainName, searchQuery, preferences } = event.data;
 
-    // Step 1: Extract brand signals
+    // Step 1: Extract brand signals (~3-5s)
     const signals = await step.run('extract-signals', async () => {
       const userPrefs: Partial<BrandSignals> = {};
       if (preferences?.tone) userPrefs.tone = preferences.tone as BrandSignals['tone'];
@@ -51,16 +54,26 @@ export const generateBrandPreviews = inngest.createFunction(
       return extracted;
     });
 
-    // Step 2: Generate logo concepts
-    const concepts = await step.run('generate-logos', async () => {
-      const palette = pregeneratePalette(signals);
-      return generateLogoConcepts(signals, palette);
-    });
+    // Steps 2-5: Generate one style at a time (~15-30s each, fits in 60s limit)
+    const allConcepts: GeneratedConcept[] = [];
 
-    // Step 3: Watermark, upload to R2, save to DB
+    for (const style of LOGO_STYLES) {
+      const concepts = await step.run(`generate-${style}`, async () => {
+        const palette = pregeneratePalette(signals);
+        return generateLogoConcepts(signals, palette, [style]);
+      });
+      allConcepts.push(...concepts);
+    }
+
+    // Step 6: Watermark, upload to R2, save to DB (~10-20s)
     await step.run('process-and-save', async () => {
-      for (let i = 0; i < concepts.length; i++) {
-        const concept = concepts[i];
+      await prisma.brandSession.update({
+        where: { id: brandSessionId },
+        data: { progress: 'processing_previews' },
+      });
+
+      for (let i = 0; i < allConcepts.length; i++) {
+        const concept = allConcepts[i];
 
         const imageBuffer = await downloadToBuffer(concept.imageUrl);
 
