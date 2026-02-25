@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground } from '@/lib/brand/postprocess';
+import { getSignedDownloadUrl } from '@/lib/brand/storage';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { generateSocialKit } from '@/lib/brand/socialKit';
@@ -25,8 +26,13 @@ export async function POST(req: NextRequest) {
     const concept = await prisma.brandConcept.findUniqueOrThrow({ where: { id: conceptId } });
     const signals = session.signals as unknown as BrandSignals;
 
-    // 1. Upscale 2x (keep white background — rembg destroys logo text)
-    const upscaledUrl = await upscaleImage(concept.originalUrl);
+    // 1. Resolve originalUrl: if it's an R2 key (not a URL), get a signed download URL
+    const originalUrl = concept.originalUrl.startsWith('http')
+      ? concept.originalUrl
+      : await getSignedDownloadUrl(concept.originalUrl);
+
+    // 1b. Upscale 2x (keep white background — rembg destroys logo text)
+    const upscaledUrl = await upscaleImage(originalUrl);
 
     // 2. Download high-res PNG
     const logoPngBuffer = await downloadToBuffer(upscaledUrl);

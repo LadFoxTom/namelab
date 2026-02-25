@@ -40,6 +40,7 @@ import { generateSocialKit } from '../lib/brand/socialKit';
 import { generateFaviconPackage } from '../lib/brand/favicons';
 import { generateBrandPdf } from '../lib/brand/brandPdf';
 import { assembleZip } from '../lib/brand/packaging';
+import { getSignedDownloadUrl } from '../lib/brand/storage';
 import { BrandSignals } from '../lib/brand/signals';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -67,9 +68,17 @@ async function main() {
   console.log(`  Domain: ${session.domainName}, Tone: ${signals.tone}, Style: ${concept.style}`);
   console.log(`  Original URL: ${concept.originalUrl}`);
 
+  // Step 1b: Resolve R2 key if needed
+  const originalUrl = concept.originalUrl.startsWith('http')
+    ? concept.originalUrl
+    : await getSignedDownloadUrl(concept.originalUrl);
+  if (originalUrl !== concept.originalUrl) {
+    console.log(`  Resolved R2 key → signed URL`);
+  }
+
   // Step 2: Upscale 2x
   console.log('\n2/10 Upscaling 2x (fal.ai esrgan)...');
-  const upscaledUrl = await upscaleImage(concept.originalUrl);
+  const upscaledUrl = await upscaleImage(originalUrl);
   console.log(`  Upscaled URL: ${upscaledUrl}`);
 
   // Step 3: Download high-res PNG (skip bg removal — rembg destroys logo text)

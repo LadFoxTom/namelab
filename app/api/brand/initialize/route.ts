@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { extractBrandSignals, BrandSignals } from '@/lib/brand/signals';
 import { generateLogoConcepts } from '@/lib/brand/generate';
 import { pregeneratePalette } from '@/lib/brand/palettePregen';
+import { downloadToBuffer } from '@/lib/brand/postprocess';
+import { applyWatermark } from '@/lib/brand/watermark';
+import { uploadToR2 } from '@/lib/brand/storage';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -50,12 +53,25 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < concepts.length; i++) {
       const concept = concepts[i];
+
+      // Download raw image from fal.ai CDN to buffer
+      const imageBuffer = await downloadToBuffer(concept.imageUrl);
+
+      // Apply watermark for preview (public)
+      const watermarkedBuffer = await applyWatermark(imageBuffer);
+      const previewKey = `brand/${session.id}/previews/${concept.style}-${i}.png`;
+      const previewUrl = await uploadToR2(previewKey, watermarkedBuffer, 'image/png', true);
+
+      // Upload original unwatermarked to R2 (private)
+      const originalKey = `brand/${session.id}/originals/${concept.style}-${i}.png`;
+      await uploadToR2(originalKey, imageBuffer, 'image/png', false);
+
       await prisma.brandConcept.create({
         data: {
           brandSessionId: session.id,
           style: concept.style,
-          previewUrl: concept.imageUrl,
-          originalUrl: concept.imageUrl,
+          previewUrl,
+          originalUrl: originalKey,
           generationIndex: i,
           promptUsed: concept.prompt,
           score: concept.score,

@@ -7,7 +7,7 @@ import { generateSocialKit } from '@/lib/brand/socialKit';
 import { generateFaviconPackage } from '@/lib/brand/favicons';
 import { generateBrandPdf } from '@/lib/brand/brandPdf';
 import { assembleZip } from '@/lib/brand/packaging';
-import { uploadBufferAndGetSignedUrl } from '@/lib/brand/storage';
+import { uploadBufferAndGetSignedUrl, getSignedDownloadUrl } from '@/lib/brand/storage';
 import { BrandSignals } from '@/lib/brand/signals';
 import { Resend } from 'resend';
 
@@ -35,9 +35,12 @@ export const generateBrandAssets = inngest.createFunction(
       return { originalUrl: concept.originalUrl, tone: sessionSignals.tone as string, signals: sessionSignals };
     });
 
-    // Step 2: Upscale (skip bg removal — rembg destroys logo text on white backgrounds)
+    // Step 2: Resolve R2 key if needed, then upscale
     const upscaledUrl = await step.run('process-image', async () => {
-      return upscaleImage(originalUrl);
+      const resolvedUrl = originalUrl.startsWith('http')
+        ? originalUrl
+        : await getSignedDownloadUrl(originalUrl);
+      return upscaleImage(resolvedUrl);
     });
 
     // Step 3: Generate all assets in one step (heavy Buffer work, no serialization needed)

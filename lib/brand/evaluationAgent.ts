@@ -128,7 +128,7 @@ Be strict. Most AI-generated logos score 40-65. Only truly clean, professional, 
             },
             {
               type: 'image_url',
-              image_url: { url: imageUrl, detail: 'low' }
+              image_url: { url: imageUrl, detail: 'high' }
             }
           ]
         }
