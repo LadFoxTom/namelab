@@ -3,12 +3,16 @@ import { prisma } from '@/lib/prisma';
 import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground } from '@/lib/brand/postprocess';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
+import { selectTypeSystem } from '@/lib/brand/typographer';
+import { buildColorSystem } from '@/lib/brand/colorist';
+import { runCriticQA } from '@/lib/brand/critic';
 import { generateSocialKit } from '@/lib/brand/socialKit';
 import { generateFaviconPackage } from '@/lib/brand/favicons';
 import { generateBrandPdf } from '@/lib/brand/brandPdf';
 import { assembleZip } from '@/lib/brand/packaging';
 import { uploadBufferAndGetSignedUrl, getSignedDownloadUrl } from '@/lib/brand/storage';
 import { BrandSignals } from '@/lib/brand/signals';
+import { DesignBrief } from '@/lib/brand/strategist';
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -24,15 +28,18 @@ export const generateBrandAssets = inngest.createFunction(
     const { purchaseId, brandSessionId, selectedConceptId, tier, domainName, email } = event.data;
 
     // Step 1: Load data and process images (URL-based steps)
-    const { originalUrl, tone, signals } = await step.run('load-data', async () => {
+    const { originalUrl, tone, signals, brief } = await step.run('load-data', async () => {
       const brandSession = await prisma.brandSession.findUniqueOrThrow({
         where: { id: brandSessionId },
       });
       const concept = await prisma.brandConcept.findUniqueOrThrow({
         where: { id: selectedConceptId },
       });
-      const sessionSignals = brandSession.signals as unknown as BrandSignals;
-      return { originalUrl: concept.originalUrl, tone: sessionSignals.tone as string, signals: sessionSignals };
+      // Support both old format (flat BrandSignals) and new format ({ brief, derived })
+      const rawSignals = brandSession.signals as any;
+      const sessionSignals: BrandSignals = rawSignals?.derived ?? rawSignals as BrandSignals;
+      const brief: DesignBrief | undefined = rawSignals?.brief;
+      return { originalUrl: concept.originalUrl, tone: sessionSignals.tone as string, signals: sessionSignals, brief };
     });
 
     // Step 2: Resolve R2 key if needed, then upscale
@@ -48,15 +55,32 @@ export const generateBrandAssets = inngest.createFunction(
       const logoPngBuffer = await downloadToBuffer(upscaledUrl);
       const logoPngTransparent = await removeWhiteBackground(logoPngBuffer);
       const logoSvg = await vectorizeToSvg(logoPngBuffer);
-      const palette = await extractBrandPalette(logoPngBuffer);
-      const fonts = getFontPairing(tone as any);
+      const imagePalette = await extractBrandPalette(logoPngBuffer);
+
+      // Use Typographer and Colorist agents when design brief is available
+      const typeSystem = brief ? selectTypeSystem(brief, signals) : undefined;
+      const fonts = typeSystem || getFontPairing(tone as any);
+      const colorSystem = brief ? buildColorSystem(brief, imagePalette) : undefined;
+      const palette = colorSystem?.brand ?? imagePalette;
+
+      // Critic QA — validate and auto-fix brand system
+      let qaReport = undefined;
+      let finalPalette = palette;
+      let finalColorSystem = colorSystem;
+      if (brief) {
+        const qa = runCriticQA(brief, signals, palette, fonts, typeSystem, colorSystem);
+        qaReport = qa.report;
+        finalPalette = qa.fixedPalette;
+        finalColorSystem = qa.fixedColorSystem ?? colorSystem;
+      }
+
       const favicons = await generateFaviconPackage(logoPngBuffer, domainName);
 
       let socialKit = undefined;
       let brandPdf = undefined;
       if (tier !== 'LOGO_ONLY') {
-        socialKit = await generateSocialKit(logoPngBuffer, palette, signals, domainName);
-        brandPdf = await generateBrandPdf(domainName, signals, logoPngBuffer, logoSvg, palette, fonts);
+        socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, domainName);
+        brandPdf = await generateBrandPdf(domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts, brief, typeSystem, finalColorSystem, qaReport);
       }
 
       const zipBuffer = await assembleZip({
@@ -64,7 +88,7 @@ export const generateBrandAssets = inngest.createFunction(
         logoPng: logoPngBuffer,
         logoPngTransparent,
         logoSvg,
-        palette,
+        palette: finalPalette,
         fonts,
         socialKit,
         favicons,

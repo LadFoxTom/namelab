@@ -1,4 +1,5 @@
 import { BrandSignals } from './signals';
+import { DesignBrief } from './strategist';
 
 export interface GeneratedPalette {
   primary: string;    // hex, e.g. "#2E7D8C"
@@ -8,9 +9,46 @@ export interface GeneratedPalette {
   light: string;
 }
 
+/**
+ * Derive a dark shade from a hex color by reducing lightness.
+ * Simple approach: blend toward black.
+ */
+function darken(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const nr = Math.round(r * (1 - amount));
+  const ng = Math.round(g * (1 - amount));
+  const nb = Math.round(b * (1 - amount));
+  return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
+}
+
+function lighten(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const nr = Math.round(r + (255 - r) * amount);
+  const ng = Math.round(g + (255 - g) * amount);
+  const nb = Math.round(b + (255 - b) * amount);
+  return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
+}
+
 // Map tone + color direction to a curated palette
-// Runs BEFORE image generation so we can inject hex values into prompts
-export function pregeneratePalette(signals: BrandSignals): GeneratedPalette {
+// When a DesignBrief is available, use its specific hex suggestions
+export function pregeneratePalette(signals: BrandSignals, brief?: DesignBrief): GeneratedPalette {
+  // If we have a design brief with specific hex suggestions, build palette from those
+  if (brief?.colorGuidance?.suggestedPrimaryHex) {
+    const primary = brief.colorGuidance.suggestedPrimaryHex;
+    const accent = brief.colorGuidance.suggestedAccentHex || primary;
+    return {
+      primary,
+      secondary: darken(primary, 0.4),
+      accent,
+      dark: darken(primary, 0.85),
+      light: lighten(primary, 0.92),
+    };
+  }
+
   const colorMaps: Record<string, GeneratedPalette> = {
     // Techy palettes
     'techy_blue':    { primary: '#2563EB', secondary: '#1E3A8A', accent: '#60A5FA', dark: '#0F172A', light: '#EFF6FF' },

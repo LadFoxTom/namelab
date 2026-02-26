@@ -4,6 +4,7 @@ import { buildPromptSet, LogoStyle, PromptSet } from './prompts';
 import { GeneratedPalette } from './palettePregen';
 import { evaluateConcept, ACCEPT_THRESHOLD } from './evaluationAgent';
 import { refinePrompt } from './promptRefinementAgent';
+import { DesignBrief } from './strategist';
 
 fal.config({ credentials: process.env.FAL_KEY! });
 
@@ -45,11 +46,12 @@ async function runWithConcurrency<T>(tasks: (() => Promise<T>)[], limit: number)
 export async function generateLogoConcepts(
   signals: BrandSignals,
   palette: GeneratedPalette,
-  stylesOverride?: LogoStyle[]
+  stylesOverride?: LogoStyle[],
+  brief?: DesignBrief
 ): Promise<GeneratedConcept[]> {
   const styles = stylesOverride ?? LOGO_STYLES;
 
-  const tasks = styles.map((style) => () => generateStyleWithEvaluation(style, signals, palette));
+  const tasks = styles.map((style) => () => generateStyleWithEvaluation(style, signals, palette, brief));
   const results = await runWithConcurrency(tasks, FAL_CONCURRENCY);
 
   const concepts: GeneratedConcept[] = [];
@@ -74,9 +76,10 @@ export async function generateLogoConcepts(
 async function generateStyleWithEvaluation(
   style: LogoStyle,
   signals: BrandSignals,
-  palette: GeneratedPalette
+  palette: GeneratedPalette,
+  brief?: DesignBrief
 ): Promise<GeneratedConcept> {
-  let promptSet: PromptSet = buildPromptSet(style, signals, palette);
+  let promptSet: PromptSet = buildPromptSet(style, signals, palette, brief);
   let bestResult: { imageUrl: string; seed: number; score: number; flags: string[]; promptSet: PromptSet } | null = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {

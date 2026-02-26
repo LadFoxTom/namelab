@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       userId: sessionUser?.id ?? null,
       signals: {},
       status: 'GENERATING',
-      progress: 'extracting_signals',
+      progress: 'analyzing_brand',
     },
   });
 

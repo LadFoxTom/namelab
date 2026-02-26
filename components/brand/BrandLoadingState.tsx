@@ -6,7 +6,7 @@ interface BrandLoadingStateProps {
 }
 
 const STEPS = [
-  { key: 'extracting_signals', label: 'Analyzing your domain and brand signals...' },
+  { key: 'analyzing_brand', label: 'Strategist analyzing brand positioning...' },
   { key: 'generating_logos', label: 'Generating 4 logo concepts...' },
   { key: 'processing_previews', label: 'Processing and preparing previews...' },
 ];

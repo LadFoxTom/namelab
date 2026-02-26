@@ -1,6 +1,6 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
-import { extractBrandSignals, BrandSignals } from '@/lib/brand/signals';
+import { generateDesignBrief, briefToSignals, DesignBrief } from '@/lib/brand/strategist';
 import { generateLogoConcepts, GeneratedConcept } from '@/lib/brand/generate';
 import { pregeneratePalette } from '@/lib/brand/palettePregen';
 import { downloadToBuffer } from '@/lib/brand/postprocess';
@@ -29,38 +29,44 @@ export const generateBrandPreviews = inngest.createFunction(
   async ({ event, step }) => {
     const { brandSessionId, domainName, searchQuery, preferences } = event.data;
 
-    // Step 1: Extract brand signals (~3-5s)
-    const signals = await step.run('extract-signals', async () => {
-      const userPrefs: Partial<BrandSignals> = {};
-      if (preferences?.tone) userPrefs.tone = preferences.tone as BrandSignals['tone'];
-      if (preferences?.iconStyle) userPrefs.iconStyle = preferences.iconStyle as BrandSignals['iconStyle'];
-      if (preferences?.colorPreference) {
-        userPrefs.colorDirection = { primary: preferences.colorPreference, mood: '', avoid: '', paletteStyle: 'analogous' };
-      }
-      if (preferences?.logoDescription) userPrefs.logoDescription = preferences.logoDescription;
-
-      const description = preferences?.businessDescription || searchQuery;
-      const extracted = await extractBrandSignals(
-        domainName,
-        description,
-        Object.keys(userPrefs).length > 0 ? userPrefs : undefined
-      );
-
+    // Step 1: Strategist — generate a rich design brief (~5-10s, uses GPT-4o)
+    const brief = await step.run('strategist', async () => {
       await prisma.brandSession.update({
         where: { id: brandSessionId },
-        data: { signals: extracted as any, progress: 'generating_logos' },
+        data: { progress: 'analyzing_brand' },
       });
 
-      return extracted;
+      const designBrief = await generateDesignBrief(
+        domainName,
+        searchQuery,
+        preferences ?? undefined
+      );
+
+      // Derive backward-compatible signals from the brief
+      const signals = briefToSignals(designBrief, domainName, preferences?.logoDescription);
+
+      // Store both the full brief and derived signals
+      await prisma.brandSession.update({
+        where: { id: brandSessionId },
+        data: {
+          signals: { brief: designBrief, derived: signals } as any,
+          progress: 'generating_logos',
+        },
+      });
+
+      return { brief: designBrief, signals };
     });
+
+    const signals = brief.signals;
+    const designBrief = brief.brief;
 
     // Steps 2-5: Generate one style at a time (~15-30s each, fits in 60s limit)
     const allConcepts: GeneratedConcept[] = [];
 
     for (const style of LOGO_STYLES) {
       const concepts = await step.run(`generate-${style}`, async () => {
-        const palette = pregeneratePalette(signals);
-        return generateLogoConcepts(signals, palette, [style]);
+        const palette = pregeneratePalette(signals, designBrief);
+        return generateLogoConcepts(signals, palette, [style], designBrief);
       });
       allConcepts.push(...concepts);
     }

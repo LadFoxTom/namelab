@@ -128,7 +128,7 @@ export function BrandIdentityPanel({
 
   const startGeneration = useCallback(async (preferences: BrandPreferences) => {
     setState('generating');
-    setProgress('extracting_signals');
+    setProgress('analyzing_brand');
     try {
       const res = await fetch('/api/brand/initialize', {
         method: 'POST',

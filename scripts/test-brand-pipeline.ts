@@ -36,12 +36,16 @@ import { prisma } from '../lib/prisma';
 import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground } from '../lib/brand/postprocess';
 import { extractBrandPalette } from '../lib/brand/palette';
 import { getFontPairing } from '../lib/brand/typography';
+import { selectTypeSystem } from '../lib/brand/typographer';
+import { buildColorSystem } from '../lib/brand/colorist';
 import { generateSocialKit } from '../lib/brand/socialKit';
 import { generateFaviconPackage } from '../lib/brand/favicons';
 import { generateBrandPdf } from '../lib/brand/brandPdf';
+import { runCriticQA } from '../lib/brand/critic';
 import { assembleZip } from '../lib/brand/packaging';
 import { getSignedDownloadUrl } from '../lib/brand/storage';
 import { BrandSignals } from '../lib/brand/signals';
+import { DesignBrief } from '../lib/brand/strategist';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -64,8 +68,12 @@ async function main() {
   console.log('1/10 Loading session data...');
   const session = await prisma.brandSession.findUniqueOrThrow({ where: { id: sessionId } });
   const concept = await prisma.brandConcept.findUniqueOrThrow({ where: { id: conceptId } });
-  const signals = session.signals as unknown as BrandSignals;
+  // Support both old format (flat BrandSignals) and new format ({ brief, derived })
+  const rawSignals = session.signals as any;
+  const signals: BrandSignals = rawSignals?.derived ?? rawSignals as BrandSignals;
+  const brief: DesignBrief | undefined = rawSignals?.brief;
   console.log(`  Domain: ${session.domainName}, Tone: ${signals.tone}, Style: ${concept.style}`);
+  if (brief) console.log(`  Brief: ${brief.aestheticDirection} / "${brief.tensionPair}"`);
   console.log(`  Original URL: ${concept.originalUrl}`);
 
   // Step 1b: Resolve R2 key if needed
@@ -105,16 +113,50 @@ async function main() {
 
   // Step 6: Extract palette
   console.log('\n6/10 Extracting color palette...');
-  const palette = await extractBrandPalette(logoPngBuffer);
-  console.log(`  Primary: ${palette.primary}, Secondary: ${palette.secondary}, Accent: ${palette.accent}`);
+  const imagePalette = await extractBrandPalette(logoPngBuffer);
+  console.log(`  Primary: ${imagePalette.primary}, Secondary: ${imagePalette.secondary}, Accent: ${imagePalette.accent}`);
 
-  // Step 7: Font pairing
+  // Step 6b: Colorist (if design brief available)
+  const colorSystem = brief ? buildColorSystem(brief, imagePalette) : undefined;
+  const palette = colorSystem?.brand ?? imagePalette;
+  if (colorSystem) {
+    console.log(`  Colorist: theme=${colorSystem.theme}, AA pass=${colorSystem.allAaPass}`);
+  }
+
+  // Step 7: Font pairing (Typographer if brief available)
   console.log('\n7/10 Getting font pairing...');
-  const fonts = getFontPairing(signals.tone);
+  const typeSystem = brief ? selectTypeSystem(brief, signals) : undefined;
+  const fonts = typeSystem || getFontPairing(signals.tone);
   console.log(`  Heading: ${fonts.heading.name}, Body: ${fonts.body.name}`);
 
-  // Step 8: Favicons
-  console.log('\n8/10 Generating favicon package...');
+  // Step 8: Critic QA
+  let qaReport = undefined;
+  let finalPalette = palette;
+  let finalColorSystem = colorSystem;
+  if (brief) {
+    console.log('\n8/11 Running Critic QA...');
+    const qa = runCriticQA(brief, signals, palette, fonts, typeSystem, colorSystem);
+    qaReport = qa.report;
+    finalPalette = qa.fixedPalette;
+    finalColorSystem = qa.fixedColorSystem ?? colorSystem;
+    console.log(`  Verdict: ${qaReport.verdict}, Overall: ${qaReport.scores.overall}/10`);
+    console.log(`  Issues: ${qaReport.issues.length}, Fixes: ${qaReport.fixes.length}`);
+    if (qaReport.issues.length > 0) {
+      for (const issue of qaReport.issues) {
+        console.log(`    [${issue.severity}] ${issue.category}: ${issue.description}`);
+      }
+    }
+    if (qaReport.fixes.length > 0) {
+      for (const fix of qaReport.fixes) {
+        console.log(`    [fix] ${fix.category}: ${fix.before} → ${fix.after}`);
+      }
+    }
+  } else {
+    console.log('\n8/11 Skipping Critic QA (no design brief)');
+  }
+
+  // Step 9: Favicons
+  console.log('\n9/11 Generating favicon package...');
   const favicons = await generateFaviconPackage(logoPngBuffer, session.domainName);
   console.log(`  Generated ${favicons.length} favicon assets`);
 
@@ -122,18 +164,18 @@ async function main() {
   let brandPdf = undefined;
 
   if (tier !== 'LOGO_ONLY') {
-    // Step 9: Social kit
-    console.log('\n9/10 Generating social media kit...');
-    socialKit = await generateSocialKit(logoPngBuffer, palette, signals, session.domainName);
+    // Step 10: Social kit
+    console.log('\n10/11 Generating social media kit...');
+    socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, session.domainName);
     console.log(`  Generated ${socialKit.length} social media assets`);
 
-    // Step 10: Brand Guidelines PDF
-    console.log('\n10/10 Generating brand guidelines PDF...');
-    brandPdf = await generateBrandPdf(session.domainName, signals, logoPngBuffer, logoSvg, palette, fonts);
+    // Step 11: Brand Guidelines PDF
+    console.log('\n11/11 Generating brand guidelines PDF...');
+    brandPdf = await generateBrandPdf(session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts, brief, typeSystem, finalColorSystem, qaReport);
     console.log(`  PDF size: ${(brandPdf.length / 1024).toFixed(1)}KB`);
   } else {
-    console.log('\n9/10 Skipping social kit (LOGO_ONLY tier)');
-    console.log('10/10 Skipping brand PDF (LOGO_ONLY tier)');
+    console.log('\n10/11 Skipping social kit (LOGO_ONLY tier)');
+    console.log('11/11 Skipping brand PDF (LOGO_ONLY tier)');
   }
 
   // Assemble ZIP
@@ -143,7 +185,7 @@ async function main() {
     logoPng: logoPngBuffer,
     logoPngTransparent,
     logoSvg,
-    palette,
+    palette: finalPalette,
     fonts,
     socialKit,
     favicons,

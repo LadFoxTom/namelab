@@ -4,11 +4,15 @@ import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground }
 import { getSignedDownloadUrl } from '@/lib/brand/storage';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
+import { selectTypeSystem } from '@/lib/brand/typographer';
+import { buildColorSystem } from '@/lib/brand/colorist';
+import { runCriticQA } from '@/lib/brand/critic';
 import { generateSocialKit } from '@/lib/brand/socialKit';
 import { generateFaviconPackage } from '@/lib/brand/favicons';
 import { generateBrandPdf } from '@/lib/brand/brandPdf';
 import { assembleZip } from '@/lib/brand/packaging';
 import { BrandSignals } from '@/lib/brand/signals';
+import { DesignBrief } from '@/lib/brand/strategist';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -24,7 +28,10 @@ export async function POST(req: NextRequest) {
     // Load data
     const session = await prisma.brandSession.findUniqueOrThrow({ where: { id: sessionId } });
     const concept = await prisma.brandConcept.findUniqueOrThrow({ where: { id: conceptId } });
-    const signals = session.signals as unknown as BrandSignals;
+    // Support both old format (flat BrandSignals) and new format ({ brief, derived })
+    const rawSignals = session.signals as any;
+    const signals: BrandSignals = rawSignals?.derived ?? rawSignals as BrandSignals;
+    const brief: DesignBrief | undefined = rawSignals?.brief;
 
     // 1. Resolve originalUrl: if it's an R2 key (not a URL), get a signed download URL
     const originalUrl = concept.originalUrl.startsWith('http')
@@ -49,30 +56,53 @@ export async function POST(req: NextRequest) {
     // 4b. Generate transparent-background variant
     const logoPngTransparent = await removeWhiteBackground(logoPngBuffer);
 
-    // 5. Extract palette
-    const palette = await extractBrandPalette(logoPngBuffer);
+    // 5. Extract palette from logo image
+    const imagePalette = await extractBrandPalette(logoPngBuffer);
 
-    // 6. Font pairing
-    const fonts = getFontPairing(signals.tone);
+    // 6. Typographer: sector-aware font selection using design brief
+    const typeSystem = brief ? selectTypeSystem(brief, signals) : undefined;
+    const fonts = typeSystem || getFontPairing(signals.tone);
 
-    // 7. Favicons
+    // 7. Colorist: systematic HSL palette with accessibility checks
+    const colorSystem = brief ? buildColorSystem(brief, imagePalette) : undefined;
+    // Use the colorist's brand palette if available (enriched with CMYK, CSS vars), else image-extracted
+    const palette = colorSystem?.brand ?? imagePalette;
+
+    // 8. Critic QA — validate and auto-fix brand system
+    let qaReport = undefined;
+    let finalPalette = palette;
+    let finalColorSystem = colorSystem;
+    if (brief) {
+      const qa = runCriticQA(brief, signals, palette, fonts, typeSystem, colorSystem);
+      qaReport = qa.report;
+      finalPalette = qa.fixedPalette;
+      finalColorSystem = qa.fixedColorSystem ?? colorSystem;
+      if (qaReport.fixes.length > 0) {
+        console.log(`Critic applied ${qaReport.fixes.length} auto-fix(es): ${qaReport.summary}`);
+      }
+    }
+
+    // 9. Favicons
     const favicons = await generateFaviconPackage(logoPngBuffer, session.domainName);
 
-    // 8-9. Social kit + PDF (for BRAND_KIT and BRAND_KIT_PRO)
+    // 10-11. Social kit + PDF (for BRAND_KIT and BRAND_KIT_PRO)
     let socialKit = undefined;
     let brandPdf = undefined;
     if (tier !== 'LOGO_ONLY') {
-      socialKit = await generateSocialKit(logoPngBuffer, palette, signals, session.domainName);
-      brandPdf = await generateBrandPdf(session.domainName, signals, logoPngBuffer, logoSvg, palette, fonts);
+      socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, session.domainName);
+      brandPdf = await generateBrandPdf(
+        session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts,
+        brief, typeSystem, finalColorSystem, qaReport
+      );
     }
 
-    // 10. Assemble ZIP
+    // 12. Assemble ZIP
     const zipBuffer = await assembleZip({
       domainName: session.domainName,
       logoPng: logoPngBuffer,
       logoPngTransparent,
       logoSvg,
-      palette,
+      palette: finalPalette,
       fonts,
       socialKit,
       favicons,
@@ -80,7 +110,7 @@ export async function POST(req: NextRequest) {
       tier: tier as any,
     });
 
-    // 11. Return ZIP as binary response
+    // 12. Return ZIP as binary response
     return new NextResponse(new Uint8Array(zipBuffer), {
       status: 200,
       headers: {
