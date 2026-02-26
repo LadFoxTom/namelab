@@ -73,11 +73,12 @@ export async function POST(req: NextRequest) {
     const imagePalette = await extractBrandPalette(logoPngBuffer);
 
     // 6. Typographer: sector-aware font selection using design brief
-    const typeSystem = brief ? selectTypeSystem(brief, signals) : undefined;
+    const conceptSalt = (concept as any).style as string | undefined;
+    const typeSystem = brief ? selectTypeSystem(brief, signals, conceptSalt) : undefined;
     const fonts = typeSystem || getFontPairing(signals.tone);
 
     // 7. Colorist: systematic HSL palette with accessibility checks
-    const colorSystem = brief ? buildColorSystem(brief, imagePalette) : undefined;
+    const colorSystem = brief ? buildColorSystem(brief, imagePalette, imagePalette.primary) : undefined;
     // Use the colorist's brand palette if available (enriched with CMYK, CSS vars), else image-extracted
     const palette = colorSystem?.brand ?? imagePalette;
 
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
     let businessCards = undefined;
     if (tier !== 'LOGO_ONLY') {
       const socialStrategy = brief ? await generateSocialStrategy(brief, signals) : undefined;
-      socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, session.domainName, socialStrategy);
+      socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, session.domainName, socialStrategy, conceptSalt);
       businessCards = await generateBusinessCards(logoPngBuffer, finalPalette, session.domainName, brief);
       brandPdf = await generateBrandPdf(
         session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts,

@@ -165,8 +165,21 @@ function checkAccessibility(fg: string, bg: string, label: string): Accessibilit
 
 // ── Main colorist function ──────────────────────────────────────────────────
 
-export function buildColorSystem(brief: DesignBrief, imagePalette: BrandPalette): ColorSystem {
+export function buildColorSystem(brief: DesignBrief, imagePalette: BrandPalette, conceptPrimary?: string): ColorSystem {
+  // Fallback chain: conceptPrimary → brief.suggestedPrimaryHex → imagePalette.primary
   let accentHex = brief.colorGuidance.suggestedPrimaryHex || imagePalette.primary;
+
+  // When a concept-specific primary is provided and usable, blend its hue with
+  // the brief-guided saturation/lightness so the palette adapts to each logo.
+  if (conceptPrimary) {
+    const cpLum = relativeLuminance(conceptPrimary);
+    if (cpLum <= 0.85 && cpLum >= 0.03) {
+      const cpHsl = hexToHsl(conceptPrimary);
+      const briefHsl = hexToHsl(accentHex);
+      // Use the logo-extracted hue with the brief-guided saturation/lightness
+      accentHex = hslToHex(cpHsl.h, briefHsl.s || cpHsl.s, briefHsl.l || cpHsl.l);
+    }
+  }
 
   // Guard: if the suggested primary is near-white or near-black, it's unusable as a brand color.
   // Fall back to the suggested accent, then image palette primary.

@@ -251,8 +251,15 @@ async function renderTextOverlay(
     fill="${textColor}" fill-opacity="0.85"${letterSpacing}>${escapeXml(transform)}</text>
 </svg>`;
 
+  // Pre-render the overlay SVG to PNG first — Sharp can't resolve @font-face data URIs
+  // in SVG overlays, so we rasterize to PNG buffer, then composite.
+  const overlayPng = await sharp(Buffer.from(overlaySvg))
+    .resize(w, h)
+    .png()
+    .toBuffer();
+
   return sharp(bgBuffer)
-    .composite([{ input: Buffer.from(overlaySvg), top: 0, left: 0 }])
+    .composite([{ input: overlayPng, top: 0, left: 0 }])
     .png()
     .toBuffer();
 }
@@ -276,10 +283,11 @@ export async function generateSocialKit(
   palette: BrandPalette,
   signals: BrandSignals,
   domainName: string,
-  strategy?: SocialStrategy
+  strategy?: SocialStrategy,
+  conceptSalt?: string
 ): Promise<SocialAsset[]> {
   const assets: SocialAsset[] = [];
-  const brandHash = hashString(domainName);
+  const brandHash = hashString(domainName + (conceptSalt || ''));
 
   const bgTreatments = strategy?.backgroundTreatments;
   const overlay = strategy?.typographyOverlay;

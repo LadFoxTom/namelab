@@ -168,10 +168,17 @@ async function generateFrontPng(
   <text x="40" y="410" font-family="InterRegular" font-size="14" fill="#6B7280">${escapeXml(domainName)}.com</text>
 </svg>`;
 
+  // Pre-render the text SVG to PNG first — Sharp can't resolve @font-face data URIs
+  // in SVG overlays, so we rasterize the SVG to a PNG buffer, then composite the PNG.
+  const textPng = await sharp(Buffer.from(textSvg))
+    .resize(CARD_W, CARD_H)
+    .png()
+    .toBuffer();
+
   return sharp(bgBuffer)
     .composite([
       { input: resizedLogo, top: 60, left: 40 },
-      { input: Buffer.from(textSvg), top: 0, left: 0 },
+      { input: textPng, top: 0, left: 0 },
     ])
     .png()
     .toBuffer();

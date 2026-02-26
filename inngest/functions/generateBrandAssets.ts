@@ -60,9 +60,9 @@ export const generateBrandAssets = inngest.createFunction(
       const imagePalette = await extractBrandPalette(logoPngBuffer);
 
       // Use Typographer and Colorist agents when design brief is available
-      const typeSystem = brief ? selectTypeSystem(brief, signals) : undefined;
+      const typeSystem = brief ? selectTypeSystem(brief, signals, conceptStyle) : undefined;
       const fonts = typeSystem || getFontPairing(tone as any);
-      const colorSystem = brief ? buildColorSystem(brief, imagePalette) : undefined;
+      const colorSystem = brief ? buildColorSystem(brief, imagePalette, imagePalette.primary) : undefined;
       const palette = colorSystem?.brand ?? imagePalette;
 
       // Critic QA — validate and auto-fix brand system
@@ -99,7 +99,7 @@ export const generateBrandAssets = inngest.createFunction(
       let businessCards = undefined;
       if (tier !== 'LOGO_ONLY') {
         const socialStrategy = brief ? await generateSocialStrategy(brief, signals) : undefined;
-        socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, domainName, socialStrategy);
+        socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, domainName, socialStrategy, conceptStyle);
         businessCards = await generateBusinessCards(logoPngBuffer, finalPalette, domainName, brief);
         brandPdf = await generateBrandPdf(domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts, brief, typeSystem, finalColorSystem);
       }

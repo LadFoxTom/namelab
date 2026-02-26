@@ -134,11 +134,11 @@ const SCALE_RATIOS: Record<string, { ratio: number; name: string }> = {
 
 // ── Main typographer function ───────────────────────────────────────────────
 
-export function selectTypeSystem(brief: DesignBrief, signals: BrandSignals): TypeSystem {
+export function selectTypeSystem(brief: DesignBrief, signals: BrandSignals, conceptSalt?: string): TypeSystem {
   const formality = brief.typeGuidance.formalityLevel;
   const displayCat = brief.typeGuidance.displayCategory;
   const bodyCat = brief.typeGuidance.bodyCategory;
-  const brandHash = hashString(signals.domainName + (brief.brandName || ''));
+  const brandHash = hashString(signals.domainName + (brief.brandName || '') + (conceptSalt || ''));
 
   // Select display font
   const displayFont = selectFont(
