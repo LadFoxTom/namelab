@@ -3,7 +3,7 @@ import { LogoStyle } from './prompts';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export const ACCEPT_THRESHOLD = 72;
+export const ACCEPT_THRESHOLD = 65;
 
 export interface EvaluationResult {
   score: number;
@@ -104,7 +104,7 @@ export async function evaluateConcept(
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       max_tokens: 800,
       messages: [
         {

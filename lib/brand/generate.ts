@@ -22,7 +22,7 @@ export interface GeneratedConcept {
 
 const LOGO_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark'];
 const FAL_CONCURRENCY = 2;
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 2;
 
 async function runWithConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): Promise<PromiseSettledResult<T>[]> {
   const results: PromiseSettledResult<T>[] = new Array(tasks.length);
@@ -140,13 +140,11 @@ async function generateStyleWithEvaluation(
 }
 
 async function generateCandidate(promptSet: PromptSet): Promise<{ imageUrl: string; seed: number }> {
-  const result = await fal.subscribe('fal-ai/flux-pro/v1.1', {
+  const result = await fal.subscribe('fal-ai/flux/schnell', {
     input: {
       prompt: promptSet.prompt,
       image_size: { width: 1024, height: 1024 },
       num_images: 1,
-      safety_tolerance: '2',
-      ...({ negative_prompt: promptSet.negativePrompt } as any),
     },
     logs: false,
   }) as any;
