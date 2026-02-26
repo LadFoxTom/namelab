@@ -198,40 +198,48 @@ function selectFont(
   excludeName?: string,
   brandHash?: number
 ): FontEntry {
-  // 1. If the strategist suggested a specific font and it's in our library, prefer it
+  const base = candidates.filter(f => f.name !== excludeName && !OVERUSED.includes(f.name));
+
+  // 1. Collect strategist-suggested fonts that exist in our library
+  const suggestedMatches: FontEntry[] = [];
   for (const suggestion of suggested) {
-    const match = candidates.find(f =>
-      f.name.toLowerCase() === suggestion.toLowerCase() && f.name !== excludeName
-    );
-    if (match && !OVERUSED.includes(match.name)) return match;
+    const match = base.find(f => f.name.toLowerCase() === suggestion.toLowerCase());
+    if (match && !suggestedMatches.includes(match)) suggestedMatches.push(match);
   }
 
-  // 2. Filter by formality range and exclude overused/duplicate
-  const viable = candidates.filter(f =>
-    formality >= f.formalityRange[0] && formality <= f.formalityRange[1] &&
-    f.name !== excludeName &&
-    !OVERUSED.includes(f.name)
+  // 2. Filter by formality range
+  const formalityViable = base.filter(f =>
+    formality >= f.formalityRange[0] && formality <= f.formalityRange[1]
   );
 
-  if (viable.length > 0) {
-    // Use brand hash to rotate through viable candidates for variety
-    if (brandHash !== undefined && viable.length > 1) {
-      return viable[brandHash % viable.length];
+  // 3. Build a ranked pool: suggested fonts that also fit formality first,
+  //    then remaining formality-viable, then all base candidates as fallback.
+  //    Dedup so each font appears only once.
+  const seen = new Set<string>();
+  const ranked: FontEntry[] = [];
+  const addUnique = (fonts: FontEntry[]) => {
+    for (const f of fonts) {
+      if (!seen.has(f.name)) { seen.add(f.name); ranked.push(f); }
     }
-    // Fallback: pick the one closest to the center of its formality range
-    return viable.sort((a, b) => {
-      const aMid = (a.formalityRange[0] + a.formalityRange[1]) / 2;
-      const bMid = (b.formalityRange[0] + b.formalityRange[1]) / 2;
-      return Math.abs(aMid - formality) - Math.abs(bMid - formality);
-    })[0];
+  };
+
+  // Suggested + formality match = highest priority
+  addUnique(suggestedMatches.filter(f => formalityViable.includes(f)));
+  // Other formality-viable candidates
+  addUnique(formalityViable);
+  // Suggested fonts outside formality range (strategist override)
+  addUnique(suggestedMatches);
+  // Everything else
+  addUnique(base);
+
+  if (ranked.length === 0) return candidates[0]; // absolute fallback
+
+  // 4. Use brand hash to rotate through the pool for variety
+  if (brandHash !== undefined && ranked.length > 1) {
+    return ranked[brandHash % ranked.length];
   }
 
-  // 3. Fallback — use hash if available, else first non-excluded
-  const allViable = candidates.filter(f => f.name !== excludeName && !OVERUSED.includes(f.name));
-  if (allViable.length > 0 && brandHash !== undefined) {
-    return allViable[brandHash % allViable.length];
-  }
-  return allViable[0] || candidates[0];
+  return ranked[0];
 }
 
 function buildTypeScale(
