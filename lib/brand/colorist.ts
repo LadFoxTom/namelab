@@ -166,7 +166,23 @@ function checkAccessibility(fg: string, bg: string, label: string): Accessibilit
 // ── Main colorist function ──────────────────────────────────────────────────
 
 export function buildColorSystem(brief: DesignBrief, imagePalette: BrandPalette): ColorSystem {
-  const accentHex = brief.colorGuidance.suggestedPrimaryHex || imagePalette.primary;
+  let accentHex = brief.colorGuidance.suggestedPrimaryHex || imagePalette.primary;
+
+  // Guard: if the suggested primary is near-white or near-black, it's unusable as a brand color.
+  // Fall back to the suggested accent, then image palette primary.
+  const lum = relativeLuminance(accentHex);
+  if (lum > 0.85 || lum < 0.03) {
+    accentHex = brief.colorGuidance.suggestedAccentHex || imagePalette.accent || imagePalette.primary;
+    // If the fallback is also too light/dark, synthesize from the accent hue range
+    const fallbackLum = relativeLuminance(accentHex);
+    if (fallbackLum > 0.85 || fallbackLum < 0.03) {
+      // Parse hue range like "140-170 green" and create a usable color
+      const hueMatch = brief.colorGuidance.accentHueRange?.match(/(\d+)/);
+      const fallbackHue = hueMatch ? parseInt(hueMatch[1]) : 220;
+      accentHex = hslToHex(fallbackHue, 65, 50);
+    }
+  }
+
   const accentHsl = hexToHsl(accentHex);
 
   const isDark = brief.themePreference === 'dark' ||

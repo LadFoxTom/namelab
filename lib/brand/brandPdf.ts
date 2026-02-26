@@ -30,6 +30,7 @@ interface PdfContext {
   secondary: RGB;
   white: RGB;
   lightGray: RGB;
+  visPrimary: RGB;  // primary guaranteed to be visible (not near-white/black)
   useDarkTheme: boolean;
 }
 
@@ -61,6 +62,14 @@ function hexToCmykStr(hex: string): string {
 
 function luminance(color: RGB): number {
   return 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
+}
+
+/** Get a visible "visual primary" — avoids near-white/near-black primary colors */
+function getVisualPrimary(primary: RGB, accent: RGB, dark: RGB): RGB {
+  const lum = luminance(primary);
+  if (lum > 0.85) return luminance(accent) < 0.8 ? accent : dark;
+  if (lum < 0.05) return luminance(accent) > 0.1 ? accent : dark;
+  return primary;
 }
 
 function wrapText(text: string, font: any, fontSize: number, maxWidth: number): string[] {
@@ -139,22 +148,29 @@ export async function generateBrandPdf(
   const page1 = pdfDoc.addPage(PageSizes.A4);
   const { width, height } = page1.getSize();
 
-  // Determine theme from brief or primary color luminance
-  const primaryLum = luminance(hexToRgb(palette.primary));
-  const useDarkTheme = brief?.themePreference === 'dark' || (brief?.themePreference !== 'light' && primaryLum < 0.35);
+  // Compute visual primary (guaranteed visible)
+  const primaryRgb = hexToRgb(palette.primary);
+  const accentRgb = hexToRgb(palette.accent);
+  const darkRgb = hexToRgb(palette.dark);
+  const visPrimary = getVisualPrimary(primaryRgb, accentRgb, darkRgb);
+
+  // Determine theme from brief or visual primary luminance
+  const visPrimaryLum = luminance(visPrimary);
+  const useDarkTheme = brief?.themePreference === 'dark' || (brief?.themePreference !== 'light' && visPrimaryLum < 0.35);
 
   const ctx: PdfContext = {
     pdfDoc, fontRegular, fontBold, fontLight, logoPng,
     width, height,
     brandTitle: brief?.brandName || domainName.charAt(0).toUpperCase() + domainName.slice(1),
     domainName,
-    primary: hexToRgb(palette.primary),
-    dark: hexToRgb(palette.dark),
+    primary: primaryRgb,
+    dark: darkRgb,
     light: hexToRgb(palette.light),
-    accent: hexToRgb(palette.accent),
+    accent: accentRgb,
     secondary: hexToRgb(palette.secondary),
     white: { r: 1, g: 1, b: 1 },
     lightGray: { r: 0.96, g: 0.96, b: 0.97 },
+    visPrimary,
     useDarkTheme,
   };
 
@@ -176,7 +192,7 @@ export async function generateBrandPdf(
 // ── Page helpers ────────────────────────────────────────────────────────────
 
 function drawPageHeader(page: any, ctx: PdfContext, title: string, pageNum: number) {
-  const bgColor = ctx.useDarkTheme ? ctx.dark : ctx.primary;
+  const bgColor = ctx.useDarkTheme ? ctx.dark : ctx.visPrimary;
   page.drawRectangle({ x: 0, y: ctx.height - 56, width: ctx.width, height: 56, color: c(bgColor) });
   page.drawText(title.toUpperCase(), { x: 48, y: ctx.height - 38, size: 13, font: ctx.fontBold, color: c(ctx.white) });
   // Accent underline
@@ -187,7 +203,7 @@ function drawPageHeader(page: any, ctx: PdfContext, title: string, pageNum: numb
 
 function drawPageFooter(page: any, ctx: PdfContext, sectionName: string) {
   // Accent line footer
-  page.drawRectangle({ x: 48, y: 34, width: ctx.width - 96, height: 1, color: c(ctx.primary), opacity: 0.15 });
+  page.drawRectangle({ x: 48, y: 34, width: ctx.width - 96, height: 1, color: c(ctx.visPrimary), opacity: 0.15 });
   page.drawText(`${ctx.domainName}  ·  ${sectionName}`, { x: 48, y: 18, size: 7, font: ctx.fontLight, color: rgb(0.55, 0.55, 0.55) });
   page.drawText('sparkdomain.xyz', { x: ctx.width - 100, y: 18, size: 7, font: ctx.fontLight, color: rgb(0.55, 0.55, 0.55) });
 }
@@ -211,7 +227,7 @@ function drawCoverPage(page: any, ctx: PdfContext, brief?: DesignBrief) {
     page.drawRectangle({ x: Math.round(width * 0.75), y: 0, width: 1, height, color: c(ctx.accent), opacity: 0.08 });
   } else {
     // Light/brand theme: primary color background with texture
-    page.drawRectangle({ x: 0, y: 0, width, height, color: c(ctx.primary) });
+    page.drawRectangle({ x: 0, y: 0, width, height, color: c(ctx.visPrimary) });
     // Subtle diagonal accent
     page.drawRectangle({ x: 0, y: height * 0.4, width, height: 1.5, color: c(ctx.white), opacity: 0.06 });
     // Accent stripe
@@ -263,7 +279,7 @@ function drawTocPage(ctx: PdfContext, brief?: DesignBrief) {
 
   page.drawRectangle({ x: 0, y: 0, width, height, color: c(ctx.white) });
   // Top accent line
-  page.drawRectangle({ x: 0, y: height - 3, width, height: 3, color: c(ctx.primary) });
+  page.drawRectangle({ x: 0, y: height - 3, width, height: 3, color: c(ctx.visPrimary) });
 
   page.drawText('Contents', { x: 48, y: height - 80, size: 28, font: ctx.fontBold, color: c(ctx.dark) });
 
@@ -324,7 +340,7 @@ function drawBrandOverviewPage(ctx: PdfContext, signals: BrandSignals, brief?: D
     y -= 24;
     const tagLines = wrapText(`"${brief.tagline}"`, ctx.fontBold, 16, maxTextW);
     tagLines.slice(0, 2).forEach((line) => {
-      page.drawText(line, { x: 48, y, size: 16, font: ctx.fontBold, color: c(ctx.primary) });
+      page.drawText(line, { x: 48, y, size: 16, font: ctx.fontBold, color: c(ctx.visPrimary) });
       y -= 22;
     });
     y -= 4;
@@ -334,7 +350,7 @@ function drawBrandOverviewPage(ctx: PdfContext, signals: BrandSignals, brief?: D
   if (brief?.tensionPair || brief?.aestheticDirection) {
     const cardH = 50;
     page.drawRectangle({ x: 48, y: y - cardH, width: maxTextW, height: cardH, color: c(ctx.lightGray) });
-    page.drawRectangle({ x: 48, y: y - cardH, width: 3, height: cardH, color: c(ctx.primary) });
+    page.drawRectangle({ x: 48, y: y - cardH, width: 3, height: cardH, color: c(ctx.visPrimary) });
     if (brief.tensionPair) {
       drawTextSafe(page, `Tension: ${brief.tensionPair}`, { x: 64, y: y - 16, size: 10, font: ctx.fontRegular, color: rgb(0.3, 0.3, 0.3), maxWidth: maxTextW - 32 });
     }
@@ -383,7 +399,7 @@ function drawBrandOverviewPage(ctx: PdfContext, signals: BrandSignals, brief?: D
       const traitY = y - (i * 32);
       if (traitY < 60) return;
       page.drawRectangle({ x: 48, y: traitY - 5, width: 160, height: 20, color: c(ctx.lightGray) });
-      drawTextSafe(page, t.trait, { x: 56, y: traitY, size: 9, font: ctx.fontBold, color: c(ctx.primary), maxWidth: 145 });
+      drawTextSafe(page, t.trait, { x: 56, y: traitY, size: 9, font: ctx.fontBold, color: c(ctx.visPrimary), maxWidth: 145 });
       page.drawText('↔', { x: 218, y: traitY, size: 10, font: ctx.fontRegular, color: rgb(0.6, 0.6, 0.6) });
       page.drawRectangle({ x: 240, y: traitY - 5, width: 160, height: 20, color: c(ctx.lightGray) });
       drawTextSafe(page, t.counterbalance, { x: 248, y: traitY, size: 9, font: ctx.fontRegular, color: rgb(0.4, 0.4, 0.4), maxWidth: 145 });
@@ -471,7 +487,7 @@ function drawLogoSystemPage(ctx: PdfContext) {
   // Full-width brand color banner with logo centered
   if (y > 160) {
     const bannerH = 120;
-    page.drawRectangle({ x: 0, y: y - bannerH, width, height: bannerH, color: c(ctx.primary) });
+    page.drawRectangle({ x: 0, y: y - bannerH, width, height: bannerH, color: c(ctx.visPrimary) });
     const bannerLogoSize = 70;
     page.drawImage(ctx.logoPng, { x: (width - bannerLogoSize) / 2, y: y - bannerH + (bannerH - bannerLogoSize) / 2, width: bannerLogoSize, height: bannerLogoSize });
     // Brand name under the logo in the banner
@@ -598,12 +614,25 @@ function drawColorPalettePage(ctx: PdfContext, palette: BrandPalette, colorSyste
     drawSectionLabel(page, ctx, 'CSS Variables', 48, y);
     y -= 10;
     const codeH = Math.min(110, y - 50);
-    page.drawRectangle({ x: 48, y: y - codeH, width: contentW, height: codeH, color: rgb(0.09, 0.09, 0.11) });
-    // Truncate CSS vars to fit
-    const cssLines = palette.cssVars.split('\n').slice(0, Math.floor(codeH / 11));
-    cssLines.forEach((line, i) => {
-      page.drawText(line.slice(0, 80), { x: 58, y: y - 14 - (i * 11), size: 7, font: ctx.fontRegular, color: rgb(0.65, 0.85, 0.65) });
-    });
+    if (codeH > 30) {
+      page.drawRectangle({ x: 48, y: y - codeH, width: contentW, height: codeH, color: rgb(0.09, 0.09, 0.11) });
+      const codeInnerW = contentW - 24; // padding on both sides
+      const maxLines = Math.floor((codeH - 20) / 11); // 10px top/bottom padding
+      const cssLines = palette.cssVars.split('\n').slice(0, maxLines);
+      cssLines.forEach((line, i) => {
+        // Truncate each line to fit within the code block
+        let truncated = line;
+        try {
+          while (truncated.length > 3 && ctx.fontRegular.widthOfTextAtSize(truncated, 7) > codeInnerW) {
+            truncated = truncated.slice(0, -1);
+          }
+        } catch { truncated = line.slice(0, 55); }
+        const textY = y - 14 - (i * 11);
+        if (textY > y - codeH + 4) { // don't render below the box
+          page.drawText(truncated, { x: 58, y: textY, size: 7, font: ctx.fontRegular, color: rgb(0.65, 0.85, 0.65) });
+        }
+      });
+    }
   }
 
   drawPageFooter(page, ctx, 'Color Palette');
@@ -737,11 +766,11 @@ function drawApplicationsPage(ctx: PdfContext, palette: BrandPalette) {
   page.drawImage(ctx.logoPng, { x: 64, y: y - 48, width: bcLogoSize, height: bcLogoSize });
   drawTextSafe(page, ctx.brandTitle, { x: 64, y: y - 66, size: 10, font: ctx.fontBold, color: c(ctx.dark), maxWidth: cardW - 32 });
   page.drawText('Your Name  ·  Title', { x: 64, y: y - 80, size: 7, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
-  page.drawText(`hello@${ctx.domainName}`, { x: 64, y: y - 94, size: 7, font: ctx.fontRegular, color: c(ctx.primary) });
+  page.drawText(`hello@${ctx.domainName}`, { x: 64, y: y - 94, size: 7, font: ctx.fontRegular, color: c(ctx.visPrimary) });
 
   // Back
   const backX = 48 + cardW + 20;
-  page.drawRectangle({ x: backX, y: y - cardH, width: cardW, height: cardH, color: c(ctx.primary) });
+  page.drawRectangle({ x: backX, y: y - cardH, width: cardW, height: cardH, color: c(ctx.visPrimary) });
   const backLogoSize = 50;
   page.drawImage(ctx.logoPng, { x: backX + (cardW - backLogoSize) / 2, y: y - cardH + (cardH - backLogoSize) / 2, width: backLogoSize, height: backLogoSize });
 
@@ -768,7 +797,7 @@ function drawApplicationsPage(ctx: PdfContext, palette: BrandPalette) {
       page.drawRectangle({ x: lhX + 14, y: y - 55 - (i * 13), width: Math.min(lw, lhW - 28), height: 5, color: c(ctx.dark), opacity: 0.06 });
     }
     // Footer line
-    page.drawRectangle({ x: lhX + 14, y: y - lhH + 18, width: lhW - 28, height: 0.5, color: c(ctx.primary), opacity: 0.3 });
+    page.drawRectangle({ x: lhX + 14, y: y - lhH + 18, width: lhW - 28, height: 0.5, color: c(ctx.visPrimary), opacity: 0.3 });
     page.drawText(`${ctx.domainName}`, { x: lhX + 14, y: y - lhH + 8, size: 6, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
   }
 
@@ -834,7 +863,7 @@ function drawDosDontsPage(ctx: PdfContext, palette: BrandPalette, brief?: Design
   // Quick Reference Card
   if (y > 120) {
     const cardH = 100;
-    const cardColor = ctx.useDarkTheme ? ctx.dark : ctx.primary;
+    const cardColor = ctx.useDarkTheme ? ctx.dark : ctx.visPrimary;
     page.drawRectangle({ x: 48, y: y - cardH, width: width - 96, height: cardH, color: c(cardColor) });
     page.drawRectangle({ x: 48, y: y, width: width - 96, height: 2.5, color: c(ctx.accent) });
 

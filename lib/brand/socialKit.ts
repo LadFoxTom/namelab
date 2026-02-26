@@ -44,10 +44,6 @@ const SOCIAL_SIZES: SocialSize[] = [
   { platform: 'Slack / Discord',    filename: 'chat-avatar.png',          w: 512,  h: 512,  logoPct: 0.55, layout: 'profile-icon' },
 ];
 
-function escXml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 // Lighten/darken a hex color
 function adjustColor(hex: string, amount: number): string {
   const r = Math.min(255, Math.max(0, parseInt(hex.slice(1, 3), 16) + amount));
@@ -63,12 +59,24 @@ function hexLuminance(hex: string): number {
   return 0.299 * r + 0.587 * g + 0.114 * b;
 }
 
+/**
+ * Get a "visual primary" color that's guaranteed to be visible.
+ * When primary is near-white or near-black, falls back to accent or dark.
+ */
+function getVisualPrimary(palette: BrandPalette): string {
+  const lum = hexLuminance(palette.primary);
+  if (lum > 0.85) return palette.accent && hexLuminance(palette.accent) < 0.8 ? palette.accent : palette.dark;
+  if (lum < 0.05) return palette.accent && hexLuminance(palette.accent) > 0.1 ? palette.accent : palette.dark;
+  return palette.primary;
+}
+
 // ── Background builders ──────────────────────────────────────────────────────
 
 // Style A: Clean minimal — solid color with subtle geometric accent
 function buildMinimalBg(w: number, h: number, palette: BrandPalette): string {
-  const isLight = hexLuminance(palette.primary) > 0.5;
-  const bgColor = isLight ? palette.dark : palette.primary;
+  const visPrimary = getVisualPrimary(palette);
+  const isLight = hexLuminance(visPrimary) > 0.5;
+  const bgColor = isLight ? palette.dark : visPrimary;
   const accentOpacity = 0.08;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
@@ -80,11 +88,12 @@ function buildMinimalBg(w: number, h: number, palette: BrandPalette): string {
 
 // Style B: Gradient with angled stripe accent
 function buildStripeBg(w: number, h: number, palette: BrandPalette): string {
-  const darker = adjustColor(palette.primary, -40);
+  const visPrimary = getVisualPrimary(palette);
+  const darker = adjustColor(visPrimary, -40);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="${palette.primary}"/>
+      <stop offset="0%" stop-color="${visPrimary}"/>
       <stop offset="100%" stop-color="${darker}"/>
     </linearGradient>
   </defs>
@@ -96,20 +105,22 @@ function buildStripeBg(w: number, h: number, palette: BrandPalette): string {
 
 // Style C: Split layout — primary color left, lighter right
 function buildSplitBg(w: number, h: number, palette: BrandPalette): string {
+  const visPrimary = getVisualPrimary(palette);
   const splitX = Math.round(w * 0.38);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
   <rect width="${w}" height="${h}" fill="${palette.light}"/>
-  <rect width="${splitX}" height="${h}" fill="${palette.primary}"/>
+  <rect width="${splitX}" height="${h}" fill="${visPrimary}"/>
   <rect x="${splitX}" y="${Math.round(h * 0.3)}" width="3" height="${Math.round(h * 0.4)}" fill="${palette.accent}"/>
 </svg>`;
 }
 
 // Style D: Dark editorial — near-black with accent line
 function buildEditorialBg(w: number, h: number, palette: BrandPalette): string {
+  const visPrimary = getVisualPrimary(palette);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
   <rect width="${w}" height="${h}" fill="${palette.dark}"/>
   <rect x="0" y="0" width="${w}" height="${Math.round(h * 0.006)}" fill="${palette.accent}"/>
-  <rect x="0" y="${h - Math.round(h * 0.006)}" width="${w}" height="${Math.round(h * 0.006)}" fill="${palette.primary}" fill-opacity="0.4"/>
+  <rect x="0" y="${h - Math.round(h * 0.006)}" width="${w}" height="${Math.round(h * 0.006)}" fill="${visPrimary}" fill-opacity="0.4"/>
 </svg>`;
 }
 
@@ -121,19 +132,17 @@ function selectBannerBg(w: number, h: number, palette: BrandPalette, brandHash: 
 
 // Profile icon: solid primary with optional subtle pattern
 function buildProfileBg(w: number, h: number, palette: BrandPalette): string {
+  const visPrimary = getVisualPrimary(palette);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-  <rect width="${w}" height="${h}" fill="${palette.primary}"/>
+  <rect width="${w}" height="${h}" fill="${visPrimary}"/>
 </svg>`;
 }
 
-// OG image: logo + brand name + tagline
-function buildOgBg(w: number, h: number, palette: BrandPalette, domainName: string, brandHash: number): string {
-  const isLight = hexLuminance(palette.primary) > 0.5;
-  const bgColor = isLight ? palette.dark : palette.primary;
-  const textColor = '#FFFFFF';
-  const brandName = domainName.charAt(0).toUpperCase() + domainName.slice(1);
-  const fontSize = Math.round(Math.min(w, h) * 0.09);
-  const subFontSize = Math.round(fontSize * 0.35);
+// OG image: gradient background with accent line (no SVG text — Sharp can't render fonts)
+function buildOgBg(w: number, h: number, palette: BrandPalette): string {
+  const visPrimary = getVisualPrimary(palette);
+  const isLight = hexLuminance(visPrimary) > 0.5;
+  const bgColor = isLight ? palette.dark : visPrimary;
   const darker = adjustColor(bgColor, -30);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
@@ -145,12 +154,6 @@ function buildOgBg(w: number, h: number, palette: BrandPalette, domainName: stri
   </defs>
   <rect width="${w}" height="${h}" fill="url(#bg)"/>
   <rect x="0" y="0" width="${w}" height="${Math.round(h * 0.005)}" fill="${palette.accent}"/>
-  <text x="${Math.round(w / 2)}" y="${Math.round(h * 0.68)}"
-    font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="${fontSize}" font-weight="700"
-    fill="${textColor}" text-anchor="middle">${escXml(brandName)}</text>
-  <text x="${Math.round(w / 2)}" y="${Math.round(h * 0.68 + fontSize * 0.7)}"
-    font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="${subFontSize}" font-weight="300"
-    fill="${textColor}" fill-opacity="0.5" text-anchor="middle">${escXml(domainName)}</text>
 </svg>`;
 }
 
@@ -186,11 +189,7 @@ export async function generateSocialKit(
       bgSvg = buildProfileBg(size.w, size.h, palette);
       addPadding = true;
     } else if (size.layout === 'og-image') {
-      bgSvg = buildOgBg(size.w, size.h, palette, domainName, brandHash);
-      // Position logo in the upper center area
-      logoTop = Math.round(size.h * 0.08);
-      logoLeft = Math.round((size.w - logoSize) / 2);
-      logoGravity = undefined;
+      bgSvg = buildOgBg(size.w, size.h, palette);
       addPadding = true;
     } else {
       // Banner
