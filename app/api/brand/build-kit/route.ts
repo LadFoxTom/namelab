@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground } from '@/lib/brand/postprocess';
+import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng } from '@/lib/brand/postprocess';
 import { getSignedDownloadUrl } from '@/lib/brand/storage';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
@@ -33,16 +33,34 @@ export async function POST(req: NextRequest) {
     const signals: BrandSignals = rawSignals?.derived ?? rawSignals as BrandSignals;
     const brief: DesignBrief | undefined = rawSignals?.brief;
 
-    // 1. Resolve originalUrl: if it's an R2 key (not a URL), get a signed download URL
-    const originalUrl = concept.originalUrl.startsWith('http')
-      ? concept.originalUrl
-      : await getSignedDownloadUrl(concept.originalUrl);
+    // 1. Resolve image URL — try private original, fall back to public preview
+    let resolvedUrl: string;
+    if (concept.originalUrl.startsWith('http')) {
+      resolvedUrl = concept.originalUrl;
+    } else {
+      try {
+        const signedUrl = await getSignedDownloadUrl(concept.originalUrl);
+        // Verify the signed URL is accessible
+        const headRes = await fetch(signedUrl, { method: 'HEAD' });
+        resolvedUrl = headRes.ok ? signedUrl : concept.previewUrl;
+        if (!headRes.ok) console.warn('Signed URL returned', headRes.status, '— falling back to previewUrl');
+      } catch {
+        resolvedUrl = concept.previewUrl;
+        console.warn('Signed URL failed — falling back to previewUrl');
+      }
+    }
 
-    // 1b. Upscale 2x (keep white background — rembg destroys logo text)
-    const upscaledUrl = await upscaleImage(originalUrl);
+    // 1b. Upscale 2x (gracefully skip if fal.ai is unavailable)
+    let imageUrl = resolvedUrl;
+    try {
+      imageUrl = await upscaleImage(resolvedUrl);
+    } catch (err: any) {
+      console.warn('Upscaling failed, using original image:', err.message);
+    }
 
-    // 2. Download high-res PNG
-    const logoPngBuffer = await downloadToBuffer(upscaledUrl);
+    // 2. Download and ensure PNG format (pdf-lib requires PNG)
+    const rawBuffer = await downloadToBuffer(imageUrl);
+    const logoPngBuffer = await ensurePng(rawBuffer);
 
     // 4. Vectorize to SVG (fallback if no API key)
     let logoSvg: string;

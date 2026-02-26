@@ -1,6 +1,6 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
-import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground } from '@/lib/brand/postprocess';
+import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng } from '@/lib/brand/postprocess';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { selectTypeSystem } from '@/lib/brand/typographer';
@@ -43,16 +43,22 @@ export const generateBrandAssets = inngest.createFunction(
     });
 
     // Step 2: Resolve R2 key if needed, then upscale
-    const upscaledUrl = await step.run('process-image', async () => {
+    const imageUrl = await step.run('process-image', async () => {
       const resolvedUrl = originalUrl.startsWith('http')
         ? originalUrl
         : await getSignedDownloadUrl(originalUrl);
-      return upscaleImage(resolvedUrl);
+      try {
+        return await upscaleImage(resolvedUrl);
+      } catch (err: any) {
+        console.warn('Upscaling failed, using original image:', err.message);
+        return resolvedUrl;
+      }
     });
 
     // Step 3: Generate all assets in one step (heavy Buffer work, no serialization needed)
     const { zipKey, downloadUrl: dlUrl } = await step.run('generate-and-package', async () => {
-      const logoPngBuffer = await downloadToBuffer(upscaledUrl);
+      const rawBuffer = await downloadToBuffer(imageUrl);
+      const logoPngBuffer = await ensurePng(rawBuffer);
       const logoPngTransparent = await removeWhiteBackground(logoPngBuffer);
       const logoSvg = await vectorizeToSvg(logoPngBuffer);
       const imagePalette = await extractBrandPalette(logoPngBuffer);

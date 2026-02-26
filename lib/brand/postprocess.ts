@@ -22,8 +22,18 @@ export async function upscaleImage(imageUrl: string): Promise<string> {
 
 export async function downloadToBuffer(url: string): Promise<Buffer> {
   const res = await fetch(url);
+  if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
   const arrayBuffer = await res.arrayBuffer();
   return Buffer.from(arrayBuffer);
+}
+
+/** Convert any image buffer (JPEG, WebP, etc.) to PNG. Already-PNG buffers pass through. */
+export async function ensurePng(buffer: Buffer): Promise<Buffer> {
+  // Check PNG magic bytes
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return buffer;
+  }
+  return sharp(buffer).png().toBuffer();
 }
 
 export async function vectorizeToSvg(imageBuffer: Buffer): Promise<string> {
