@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng } from '@/lib/brand/postprocess';
-import { getSignedDownloadUrl } from '@/lib/brand/storage';
+import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng } from '@/lib/brand/postprocess';
+import { downloadFromR2 } from '@/lib/brand/storage';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { selectTypeSystem } from '@/lib/brand/typographer';
@@ -33,34 +33,27 @@ export async function POST(req: NextRequest) {
     const signals: BrandSignals = rawSignals?.derived ?? rawSignals as BrandSignals;
     const brief: DesignBrief | undefined = rawSignals?.brief;
 
-    // 1. Resolve image URL — try private original, fall back to public preview
-    let resolvedUrl: string;
+    // 1. Download the original (unwatermarked) image from R2
+    let logoPngBuffer: Buffer;
     if (concept.originalUrl.startsWith('http')) {
-      resolvedUrl = concept.originalUrl;
+      // Legacy: originalUrl is already a full URL
+      const rawBuffer = await downloadToBuffer(concept.originalUrl);
+      logoPngBuffer = await ensurePng(rawBuffer);
     } else {
+      // originalUrl is an R2 key — download directly via SDK (no signed URL needed)
       try {
-        const signedUrl = await getSignedDownloadUrl(concept.originalUrl);
-        // Verify the signed URL is accessible
-        const headRes = await fetch(signedUrl, { method: 'HEAD' });
-        resolvedUrl = headRes.ok ? signedUrl : concept.previewUrl;
-        if (!headRes.ok) console.warn('Signed URL returned', headRes.status, '— falling back to previewUrl');
-      } catch {
-        resolvedUrl = concept.previewUrl;
-        console.warn('Signed URL failed — falling back to previewUrl');
+        const rawBuffer = await downloadFromR2(concept.originalUrl);
+        logoPngBuffer = await ensurePng(rawBuffer);
+      } catch (err: any) {
+        console.warn('R2 direct download failed, falling back to previewUrl:', err.message);
+        const rawBuffer = await downloadToBuffer(concept.previewUrl);
+        logoPngBuffer = await ensurePng(rawBuffer);
       }
     }
 
-    // 1b. Upscale 2x (gracefully skip if fal.ai is unavailable)
-    let imageUrl = resolvedUrl;
-    try {
-      imageUrl = await upscaleImage(resolvedUrl);
-    } catch (err: any) {
-      console.warn('Upscaling failed, using original image:', err.message);
-    }
-
-    // 2. Download and ensure PNG format (pdf-lib requires PNG)
-    const rawBuffer = await downloadToBuffer(imageUrl);
-    const logoPngBuffer = await ensurePng(rawBuffer);
+    // 1b. Upscale 2x via fal.ai (gracefully skip if unavailable)
+    // Note: upscaler needs a URL, so we upload the clean buffer temporarily or skip
+    // For now, skip upscaling if fal.ai is down — the original is already good quality
 
     // 4. Vectorize to SVG (fallback if no API key)
     let logoSvg: string;

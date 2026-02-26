@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const r2 = new S3Client({
@@ -47,4 +47,15 @@ export async function uploadBufferAndGetSignedUrl(
 ): Promise<string> {
   await uploadToR2(key, body, contentType, false);
   return getSignedDownloadUrl(key, expiresInSeconds);
+}
+
+/** Download a private R2 object directly via the SDK (bypasses signed URL issues). */
+export async function downloadFromR2(key: string): Promise<Buffer> {
+  const obj = await r2.send(new GetObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME!,
+    Key: key,
+  }));
+  const bytes = await obj.Body?.transformToByteArray();
+  if (!bytes) throw new Error(`R2 object empty: ${key}`);
+  return Buffer.from(bytes);
 }

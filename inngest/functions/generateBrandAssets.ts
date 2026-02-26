@@ -1,6 +1,6 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
-import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng } from '@/lib/brand/postprocess';
+import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng } from '@/lib/brand/postprocess';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { selectTypeSystem } from '@/lib/brand/typographer';
@@ -10,7 +10,7 @@ import { generateSocialKit } from '@/lib/brand/socialKit';
 import { generateFaviconPackage } from '@/lib/brand/favicons';
 import { generateBrandPdf } from '@/lib/brand/brandPdf';
 import { assembleZip } from '@/lib/brand/packaging';
-import { uploadBufferAndGetSignedUrl, getSignedDownloadUrl } from '@/lib/brand/storage';
+import { uploadBufferAndGetSignedUrl, downloadFromR2 } from '@/lib/brand/storage';
 import { BrandSignals } from '@/lib/brand/signals';
 import { DesignBrief } from '@/lib/brand/strategist';
 import { Resend } from 'resend';
@@ -42,23 +42,17 @@ export const generateBrandAssets = inngest.createFunction(
       return { originalUrl: concept.originalUrl, tone: sessionSignals.tone as string, signals: sessionSignals, brief };
     });
 
-    // Step 2: Resolve R2 key if needed, then upscale
-    const imageUrl = await step.run('process-image', async () => {
-      const resolvedUrl = originalUrl.startsWith('http')
-        ? originalUrl
-        : await getSignedDownloadUrl(originalUrl);
-      try {
-        return await upscaleImage(resolvedUrl);
-      } catch (err: any) {
-        console.warn('Upscaling failed, using original image:', err.message);
-        return resolvedUrl;
-      }
-    });
-
+    // Step 2: Download original (unwatermarked) image from R2
     // Step 3: Generate all assets in one step (heavy Buffer work, no serialization needed)
     const { zipKey, downloadUrl: dlUrl } = await step.run('generate-and-package', async () => {
-      const rawBuffer = await downloadToBuffer(imageUrl);
-      const logoPngBuffer = await ensurePng(rawBuffer);
+      let logoPngBuffer: Buffer;
+      if (originalUrl.startsWith('http')) {
+        const rawBuffer = await downloadToBuffer(originalUrl);
+        logoPngBuffer = await ensurePng(rawBuffer);
+      } else {
+        const rawBuffer = await downloadFromR2(originalUrl);
+        logoPngBuffer = await ensurePng(rawBuffer);
+      }
       const logoPngTransparent = await removeWhiteBackground(logoPngBuffer);
       const logoSvg = await vectorizeToSvg(logoPngBuffer);
       const imagePalette = await extractBrandPalette(logoPngBuffer);
