@@ -161,9 +161,39 @@ Professional logo, brand identity, vector graphic.
   };
 }
 
+function deriveMonogramLetters(domainName: string, brief?: DesignBrief): { initials: string; firstLetter: string } {
+  // Use the brand name from the brief if available (may differ from domain)
+  const brandName = brief?.brandName || domainName;
+  const firstLetter = brandName[0].toUpperCase();
+
+  // Try to find natural word boundaries for meaningful initials
+  // e.g. "SparkDomain" → "SD", "brand studio" → "BS", "MachinePlant" → "MP"
+  const words = brandName
+    .replace(/([a-z])([A-Z])/g, '$1 $2')  // camelCase → words
+    .replace(/[^a-zA-Z\s]/g, '')            // strip non-alpha
+    .split(/\s+/)
+    .filter(w => w.length > 0);
+
+  if (words.length >= 2) {
+    // Multiple words → use first letter of each (up to 3)
+    const initials = words.slice(0, 3).map(w => w[0].toUpperCase()).join('');
+    return { initials, firstLetter };
+  }
+
+  // Single word → use first and a prominent consonant, or just the first letter
+  const word = words[0] || domainName;
+  const consonants = word.slice(1).match(/[bcdfghjklmnpqrstvwxyz]/gi);
+  if (consonants && consonants.length > 0) {
+    // Pick first letter + a strong mid/late consonant for visual interest
+    const midConsonant = consonants[Math.floor(consonants.length / 2)].toUpperCase();
+    return { initials: `${firstLetter}${midConsonant}`, firstLetter };
+  }
+
+  return { initials: `${firstLetter}${(word[1] || '').toUpperCase()}`, firstLetter };
+}
+
 function buildMonogramPrompt(signals: BrandSignals, palette: GeneratedPalette, brief?: DesignBrief): PromptSet {
-  const initials = signals.domainName.slice(0, 2).toUpperCase();
-  const firstLetter = signals.domainName[0].toUpperCase();
+  const { initials, firstLetter } = deriveMonogramLetters(signals.domainName, brief);
 
   const typeDesc = brief ? getTypeDescription(brief) : 'bold, distinctive';
   const aestheticCtx = brief ? `\nAesthetic: ${getAestheticStyle(brief)}. The monogram should feel "${brief.tensionPair}".` : '';

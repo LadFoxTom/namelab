@@ -1,6 +1,6 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
-import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng } from '@/lib/brand/postprocess';
+import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng, compositeLogoWithText } from '@/lib/brand/postprocess';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { selectTypeSystem } from '@/lib/brand/typographer';
@@ -28,7 +28,7 @@ export const generateBrandAssets = inngest.createFunction(
     const { purchaseId, brandSessionId, selectedConceptId, tier, domainName, email } = event.data;
 
     // Step 1: Load data and process images (URL-based steps)
-    const { originalUrl, tone, signals, brief } = await step.run('load-data', async () => {
+    const { originalUrl, tone, signals, brief, conceptStyle } = await step.run('load-data', async () => {
       const brandSession = await prisma.brandSession.findUniqueOrThrow({
         where: { id: brandSessionId },
       });
@@ -39,7 +39,7 @@ export const generateBrandAssets = inngest.createFunction(
       const rawSignals = brandSession.signals as any;
       const sessionSignals: BrandSignals = rawSignals?.derived ?? rawSignals as BrandSignals;
       const brief: DesignBrief | undefined = rawSignals?.brief;
-      return { originalUrl: concept.originalUrl, tone: sessionSignals.tone as string, signals: sessionSignals, brief };
+      return { originalUrl: concept.originalUrl, tone: sessionSignals.tone as string, signals: sessionSignals, brief, conceptStyle: (concept as any).style as string | undefined };
     });
 
     // Step 2: Download original (unwatermarked) image from R2
@@ -74,19 +74,31 @@ export const generateBrandAssets = inngest.createFunction(
         finalColorSystem = qa.fixedColorSystem ?? colorSystem;
       }
 
+      // Generate logo-with-text composite for abstract marks and monograms
+      let logoWithTextPng: Buffer | undefined;
+      if (conceptStyle === 'abstract_mark' || conceptStyle === 'monogram') {
+        try {
+          const brandName = brief?.brandName || domainName.charAt(0).toUpperCase() + domainName.slice(1);
+          logoWithTextPng = await compositeLogoWithText(logoPngBuffer, brandName, finalPalette.primary, finalPalette.dark);
+        } catch (err: any) {
+          console.warn('Logo-with-text composite failed:', err.message);
+        }
+      }
+
       const favicons = await generateFaviconPackage(logoPngBuffer, domainName);
 
       let socialKit = undefined;
       let brandPdf = undefined;
       if (tier !== 'LOGO_ONLY') {
         socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, domainName);
-        brandPdf = await generateBrandPdf(domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts, brief, typeSystem, finalColorSystem, qaReport);
+        brandPdf = await generateBrandPdf(domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts, brief, typeSystem, finalColorSystem);
       }
 
       const zipBuffer = await assembleZip({
         domainName,
         logoPng: logoPngBuffer,
         logoPngTransparent,
+        logoWithTextPng,
         logoSvg,
         palette: finalPalette,
         fonts,

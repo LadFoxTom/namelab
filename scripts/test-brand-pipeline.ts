@@ -171,7 +171,7 @@ async function main() {
 
     // Step 11: Brand Guidelines PDF
     console.log('\n11/11 Generating brand guidelines PDF...');
-    brandPdf = await generateBrandPdf(session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts, brief, typeSystem, finalColorSystem, qaReport);
+    brandPdf = await generateBrandPdf(session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts, brief, typeSystem, finalColorSystem);
     console.log(`  PDF size: ${(brandPdf.length / 1024).toFixed(1)}KB`);
   } else {
     console.log('\n10/11 Skipping social kit (LOGO_ONLY tier)');

@@ -9,6 +9,7 @@ interface PackageAssets {
   domainName: string;
   logoPng: Buffer;
   logoPngTransparent?: Buffer;
+  logoWithTextPng?: Buffer;
   logoSvg: string;
   palette: BrandPalette;
   fonts: FontPairing;
@@ -35,6 +36,9 @@ export async function assembleZip(assets: PackageAssets): Promise<Buffer> {
     archive.append(assets.logoPng, { name: `${name}/logo/logo-2000px.png` });
     if (assets.logoPngTransparent) {
       archive.append(assets.logoPngTransparent, { name: `${name}/logo/logo-2000px-transparent.png` });
+    }
+    if (assets.logoWithTextPng) {
+      archive.append(assets.logoWithTextPng, { name: `${name}/logo/logo-with-name.png` });
     }
     archive.append(Buffer.from(assets.logoSvg), { name: `${name}/logo/logo.svg` });
 

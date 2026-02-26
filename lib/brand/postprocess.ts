@@ -89,6 +89,58 @@ export async function removeWhiteBackground(imageBuffer: Buffer, threshold = 245
     .toBuffer();
 }
 
+/**
+ * Composite a logo with brand name text below it.
+ * Used for abstract marks that need a "logo + name" variant.
+ */
+export async function compositeLogoWithText(
+  logoPngBuffer: Buffer,
+  brandName: string,
+  primaryColor: string,
+  darkColor: string,
+  outputWidth = 2000
+): Promise<Buffer> {
+  const logoSize = Math.round(outputWidth * 0.5);
+  const textHeight = Math.round(outputWidth * 0.12);
+  const totalHeight = Math.round(logoSize + textHeight + outputWidth * 0.08);
+  const fontSize = Math.round(outputWidth * 0.06);
+
+  // Resize logo
+  const resizedLogo = await sharp(logoPngBuffer)
+    .resize(logoSize, logoSize, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+    .png()
+    .toBuffer();
+
+  // Create text SVG
+  const escName = brandName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const textSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${textHeight}">
+    <text x="${outputWidth / 2}" y="${textHeight * 0.7}"
+      font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+      font-size="${fontSize}" font-weight="600"
+      fill="${darkColor}" text-anchor="middle">${escName}</text>
+  </svg>`;
+
+  const textBuffer = await sharp(Buffer.from(textSvg))
+    .resize(outputWidth, textHeight)
+    .png()
+    .toBuffer();
+
+  // White canvas with logo centered on top, text below
+  const logoLeft = Math.round((outputWidth - logoSize) / 2);
+  const logoTop = Math.round(outputWidth * 0.04);
+  const textTop = logoTop + logoSize + Math.round(outputWidth * 0.02);
+
+  return sharp({
+    create: { width: outputWidth, height: totalHeight, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 255 } }
+  })
+    .composite([
+      { input: resizedLogo, top: logoTop, left: logoLeft },
+      { input: textBuffer, top: textTop, left: 0 },
+    ])
+    .png()
+    .toBuffer();
+}
+
 export async function svgToHighResPng(svgString: string, size = 2000): Promise<Buffer> {
   // Strip white background rects from SVG so the PNG has true transparency.
   // Vectorizer.ai and other tools often add a full-size white rect as background.

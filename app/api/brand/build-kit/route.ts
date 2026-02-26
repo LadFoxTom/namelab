@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng } from '@/lib/brand/postprocess';
+import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng, compositeLogoWithText } from '@/lib/brand/postprocess';
 import { downloadFromR2 } from '@/lib/brand/storage';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
@@ -93,6 +93,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 8b. Generate logo-with-text composite (for abstract marks and monograms that lack brand name)
+    let logoWithTextPng: Buffer | undefined;
+    const conceptStyle = (concept as any).style as string | undefined;
+    if (conceptStyle === 'abstract_mark' || conceptStyle === 'monogram') {
+      try {
+        const brandName = brief?.brandName || session.domainName.charAt(0).toUpperCase() + session.domainName.slice(1);
+        logoWithTextPng = await compositeLogoWithText(logoPngBuffer, brandName, finalPalette.primary, finalPalette.dark);
+      } catch (err: any) {
+        console.warn('Logo-with-text composite failed:', err.message);
+      }
+    }
+
     // 9. Favicons
     const favicons = await generateFaviconPackage(logoPngBuffer, session.domainName);
 
@@ -103,7 +115,7 @@ export async function POST(req: NextRequest) {
       socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, session.domainName);
       brandPdf = await generateBrandPdf(
         session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts,
-        brief, typeSystem, finalColorSystem, qaReport
+        brief, typeSystem, finalColorSystem
       );
     }
 
@@ -112,6 +124,7 @@ export async function POST(req: NextRequest) {
       domainName: session.domainName,
       logoPng: logoPngBuffer,
       logoPngTransparent,
+      logoWithTextPng,
       logoSvg,
       palette: finalPalette,
       fonts,

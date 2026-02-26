@@ -112,6 +112,16 @@ const MONO_FONTS: FontEntry[] = [
 // Overused fonts — avoid unless strategist explicitly suggested them
 const OVERUSED = ['Inter', 'Roboto', 'Arial', 'Open Sans', 'Montserrat'];
 
+// Simple string hash to seed font selection variety per brand
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 // ── Type scale ratios ───────────────────────────────────────────────────────
 
 const SCALE_RATIOS: Record<string, { ratio: number; name: string }> = {
@@ -128,12 +138,15 @@ export function selectTypeSystem(brief: DesignBrief, signals: BrandSignals): Typ
   const formality = brief.typeGuidance.formalityLevel;
   const displayCat = brief.typeGuidance.displayCategory;
   const bodyCat = brief.typeGuidance.bodyCategory;
+  const brandHash = hashString(signals.domainName + (brief.brandName || ''));
 
   // Select display font
   const displayFont = selectFont(
     DISPLAY_FONTS[displayCat] || DISPLAY_FONTS['geometric_sans'],
     formality,
-    brief.typeGuidance.suggestedDisplayFonts
+    brief.typeGuidance.suggestedDisplayFonts,
+    undefined,
+    brandHash
   );
 
   // Select body font — must differ from display
@@ -141,11 +154,12 @@ export function selectTypeSystem(brief: DesignBrief, signals: BrandSignals): Typ
     BODY_FONTS[bodyCat] || BODY_FONTS['humanist_sans'],
     formality,
     brief.typeGuidance.suggestedBodyFonts,
-    displayFont.name
+    displayFont.name,
+    brandHash + 7 // offset so body picks differently from display
   );
 
   // Select mono font based on formality
-  const monoFont = selectFont(MONO_FONTS, formality, []);
+  const monoFont = selectFont(MONO_FONTS, formality, [], undefined, brandHash + 13);
 
   // Build type scale
   const scaleEntry = SCALE_RATIOS[String(formality)] || SCALE_RATIOS['3'];
@@ -181,7 +195,8 @@ function selectFont(
   candidates: FontEntry[],
   formality: number,
   suggested: string[],
-  excludeName?: string
+  excludeName?: string,
+  brandHash?: number
 ): FontEntry {
   // 1. If the strategist suggested a specific font and it's in our library, prefer it
   for (const suggestion of suggested) {
@@ -199,7 +214,11 @@ function selectFont(
   );
 
   if (viable.length > 0) {
-    // Pick the one closest to the center of its formality range
+    // Use brand hash to rotate through viable candidates for variety
+    if (brandHash !== undefined && viable.length > 1) {
+      return viable[brandHash % viable.length];
+    }
+    // Fallback: pick the one closest to the center of its formality range
     return viable.sort((a, b) => {
       const aMid = (a.formalityRange[0] + a.formalityRange[1]) / 2;
       const bMid = (b.formalityRange[0] + b.formalityRange[1]) / 2;
@@ -207,9 +226,12 @@ function selectFont(
     })[0];
   }
 
-  // 3. Fallback — first non-excluded, non-overused candidate
-  const fallback = candidates.find(f => f.name !== excludeName && !OVERUSED.includes(f.name));
-  return fallback || candidates[0];
+  // 3. Fallback — use hash if available, else first non-excluded
+  const allViable = candidates.filter(f => f.name !== excludeName && !OVERUSED.includes(f.name));
+  if (allViable.length > 0 && brandHash !== undefined) {
+    return allViable[brandHash % allViable.length];
+  }
+  return allViable[0] || candidates[0];
 }
 
 function buildTypeScale(
