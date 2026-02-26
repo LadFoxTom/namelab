@@ -2,7 +2,7 @@ import { BrandSignals } from './signals';
 import { GeneratedPalette } from './palettePregen';
 import { DesignBrief } from './strategist';
 
-export type LogoStyle = 'wordmark' | 'icon_wordmark' | 'monogram' | 'abstract_mark';
+export type LogoStyle = 'wordmark' | 'icon_wordmark' | 'monogram' | 'abstract_mark' | 'pictorial' | 'mascot' | 'emblem' | 'dynamic';
 
 export interface PromptSet {
   prompt: string;
@@ -32,6 +32,10 @@ export function buildPromptSet(
     icon_wordmark: () => buildIconWordmarkPrompt(signals, palette, brief),
     monogram: () => buildMonogramPrompt(signals, palette, brief),
     abstract_mark: () => buildAbstractMarkPrompt(signals, palette, brief),
+    pictorial: () => buildPictorialPrompt(signals, palette, brief),
+    mascot: () => buildMascotPrompt(signals, palette, brief),
+    emblem: () => buildEmblemPrompt(signals, palette, brief),
+    dynamic: () => buildDynamicPrompt(signals, palette, brief),
   };
 
   return builders[style]();
@@ -251,5 +255,93 @@ Simple enough to be memorable. One unified form, not a collection of shapes.
 Abstract logo mark, brand symbol, vector graphic, flat design.
     `.trim(),
     negativePrompt: `${GLOBAL_NEGATIVE}, text, letters, alphabet, words, typography, brand name, any readable characters, numbers`,
+  };
+}
+
+function buildPictorialPrompt(signals: BrandSignals, palette: GeneratedPalette, brief?: DesignBrief): PromptSet {
+  const conceptSeeds = brief?.logoGuidance.conceptSeeds || [];
+  const subject = signals.logoDescription || conceptSeeds.slice(0, 2).join(' and ') || signals.suggestedKeywords.slice(0, 2).join(' and ') || signals.industry;
+
+  const aestheticCtx = brief ? `\nAesthetic: ${getAestheticStyle(brief)}. Brand tension: "${brief.tensionPair}".` : '';
+  const geometry = brief?.logoGuidance.geometry || 'geometric';
+  const strokeCtx = brief ? `Stroke weight: ${getStrokeWeight(brief)}.` : '';
+
+  return {
+    prompt: `
+Professional pictorial logo mark — a recognizable, literal icon representing ${subject}.
+Style: clean ${geometry} illustration, flat 2D vector. ${strokeCtx}
+Color: ${palette.primary} on pure white background.${aestheticCtx}
+The icon is a simplified, stylized depiction — immediately recognizable but artistically refined.
+CRITICAL: NO TEXT. NO LETTERS. NO WORDS. Pure pictorial icon only.
+Simple enough to work at 16px favicon size. One unified form.
+Flat 2D vector style. No shadows, no gradients, no frames.
+Pictorial logo mark, brand icon, vector graphic, flat design.
+    `.trim(),
+    negativePrompt: `${GLOBAL_NEGATIVE}, text, letters, words, typography, brand name, abstract shapes, badge, shield, frame`,
+  };
+}
+
+function buildMascotPrompt(signals: BrandSignals, palette: GeneratedPalette, brief?: DesignBrief): PromptSet {
+  const conceptSeeds = brief?.logoGuidance.conceptSeeds || [];
+  const characterConcept = signals.logoDescription || conceptSeeds[0] || 'friendly character';
+
+  const aestheticCtx = brief ? `\nAesthetic: ${getAestheticStyle(brief)}. The character should feel "${brief.tensionPair}".` : '';
+
+  return {
+    prompt: `
+Professional mascot logo — a simple, bold character illustration as a brand mark.
+Character concept: ${characterConcept}, inspired by the ${signals.industry} space.
+Style: flat 2D vector illustration, minimal detail, bold shapes, friendly and approachable.
+Color: ${palette.primary} as primary character color on pure white background.${aestheticCtx}
+The character is simple enough to work as a small icon. Clean, geometric construction.
+CRITICAL: NO TEXT. NO LETTERS. NO WORDS. Character illustration only.
+Flat 2D vector style. No shadows, no gradients, no photorealism.
+Mascot logo, character mark, brand mascot, vector illustration.
+    `.trim(),
+    negativePrompt: `${GLOBAL_NEGATIVE}, text, letters, words, typography, realistic face, detailed anatomy, complex illustration, badge, frame`,
+  };
+}
+
+function buildEmblemPrompt(signals: BrandSignals, palette: GeneratedPalette, brief?: DesignBrief): PromptSet {
+  const typeDesc = brief ? getTypeDescription(brief) : 'bold serif or sans-serif';
+  const aestheticCtx = brief ? `\nAesthetic: ${getAestheticStyle(brief)}. The emblem should feel "${brief.tensionPair}".` : '';
+  const anchorCtx = brief?.memorableAnchor ? `\nIncorporate: ${brief.memorableAnchor}.` : '';
+  const strokeCtx = brief ? `Stroke weight: ${getStrokeWeight(brief)}.` : '';
+
+  return {
+    prompt: `
+Professional emblem logo — a unified badge or crest design with the brand name "${signals.domainName}" woven into the shape.
+Typography: ${typeDesc} integrated into the emblem structure. ${strokeCtx}
+Color: ${palette.primary} on pure white background.${aestheticCtx}${anchorCtx}
+The text and decorative elements form ONE unified badge shape — not text next to an icon.
+Style: flat 2D vector, clean lines, balanced symmetry, professional craftsmanship.
+Think: university seal, brewery crest, sports badge, vintage emblem — but modernized and minimal.
+No shadows, no gradients, no photorealism. Scalable from 16px to billboard.
+Emblem logo, badge design, crest, brand seal, vector graphic.
+    `.trim(),
+    negativePrompt: `${GLOBAL_NEGATIVE}, separated icon and text, loose composition, busy background, detailed illustration`,
+  };
+}
+
+function buildDynamicPrompt(signals: BrandSignals, palette: GeneratedPalette, brief?: DesignBrief): PromptSet {
+  const conceptSeeds = brief?.logoGuidance.conceptSeeds || [];
+  const iconDescription = signals.logoDescription || conceptSeeds.slice(0, 2).join(' or ') || signals.suggestedKeywords.slice(0, 2).join(' or ');
+  const geometry = brief?.logoGuidance.geometry || 'geometric';
+  const typeDesc = brief ? getTypeDescription(brief) : 'clean modern sans-serif';
+  const aestheticCtx = brief ? `\nAesthetic: ${getAestheticStyle(brief)}. Brand tension: "${brief.tensionPair}".` : '';
+  const strokeCtx = brief ? `Stroke weight: ${getStrokeWeight(brief)}.` : '';
+
+  return {
+    prompt: `
+Professional stacked/vertical logo design for brand "${signals.domainName}".
+Composition: simple ${geometry} icon representing ${iconDescription} on TOP, brand name text "${signals.domainName}" BELOW.
+Layout: vertically stacked, compact, square-friendly. Icon centered above text.
+Icon color: ${palette.primary}. Text color: ${palette.dark}. Text in ${typeDesc}. ${strokeCtx}${aestheticCtx}
+Pure white background. Two elements vertically stacked: icon mark above + brand name below.
+Flat 2D vector style, no shadows, no gradients, no borders or frames.
+The overall shape fits comfortably in a square. Responsive, works as app icon or header logo.
+Stacked logo, vertical logo lockup, brand identity, vector graphic.
+    `.trim(),
+    negativePrompt: `${GLOBAL_NEGATIVE}, horizontal layout, side by side, text only, icon only, badge, shield frame, busy background`,
   };
 }

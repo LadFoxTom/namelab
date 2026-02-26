@@ -1,6 +1,9 @@
 import sharp from 'sharp';
+import path from 'path';
+import fs from 'fs';
 import { BrandPalette } from './palette';
 import { BrandSignals } from './signals';
+import { SocialStrategy } from './socialDirector';
 
 export interface SocialAsset {
   platform: string;
@@ -157,6 +160,107 @@ function buildOgBg(w: number, h: number, palette: BrandPalette): string {
 </svg>`;
 }
 
+// ── Strategy-driven background builders ─────────────────────────────────────
+
+// Pure gradient background (no geometric accents)
+function buildGradientBg(w: number, h: number, palette: BrandPalette): string {
+  const visPrimary = getVisualPrimary(palette);
+  const isLight = hexLuminance(visPrimary) > 0.5;
+  const from = isLight ? palette.dark : visPrimary;
+  const to = adjustColor(from, -35);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${from}"/>
+      <stop offset="100%" stop-color="${to}"/>
+    </linearGradient>
+  </defs>
+  <rect width="${w}" height="${h}" fill="url(#g)"/>
+</svg>`;
+}
+
+// Dot/grid pattern on dark background
+function buildPatternBg(w: number, h: number, palette: BrandPalette): string {
+  const visPrimary = getVisualPrimary(palette);
+  const spacing = Math.max(20, Math.round(Math.min(w, h) * 0.03));
+  const dotR = Math.max(1, Math.round(spacing * 0.08));
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+  <defs>
+    <pattern id="dots" width="${spacing}" height="${spacing}" patternUnits="userSpaceOnUse">
+      <circle cx="${spacing / 2}" cy="${spacing / 2}" r="${dotR}" fill="${visPrimary}" fill-opacity="0.12"/>
+    </pattern>
+  </defs>
+  <rect width="${w}" height="${h}" fill="${palette.dark}"/>
+  <rect width="${w}" height="${h}" fill="url(#dots)"/>
+</svg>`;
+}
+
+function selectBgByStrategy(
+  w: number, h: number, palette: BrandPalette, brandHash: number,
+  bgStyle?: string
+): string {
+  switch (bgStyle) {
+    case 'gradient': return buildGradientBg(w, h, palette);
+    case 'pattern': return buildPatternBg(w, h, palette);
+    case 'editorial': return buildEditorialBg(w, h, palette);
+    case 'minimal': return buildMinimalBg(w, h, palette);
+    default: return selectBannerBg(w, h, palette, brandHash);
+  }
+}
+
+// ── Text overlay rendering ──────────────────────────────────────────────────
+
+let _socialFontBase64: string | null = null;
+function getInterBoldBase64(): string {
+  if (!_socialFontBase64) {
+    const fontPath = path.join(process.cwd(), 'lib/brand/fonts/Inter-Bold.ttf');
+    _socialFontBase64 = fs.readFileSync(fontPath).toString('base64');
+  }
+  return _socialFontBase64;
+}
+
+async function renderTextOverlay(
+  bgBuffer: Buffer, w: number, h: number,
+  text: string, placement: string, textStyle: string, palette: BrandPalette
+): Promise<Buffer> {
+  if (!text) return bgBuffer;
+
+  const fontSize = Math.max(14, Math.round(Math.min(w, h) * 0.04));
+  const fontBase64 = getInterBoldBase64();
+  const textColor = hexLuminance(palette.dark) < 0.5 ? palette.light : palette.dark;
+  const transform = textStyle === 'caps' ? text.toUpperCase() : text;
+  const letterSpacing = textStyle === 'caps' ? ' letter-spacing="0.08em"' : '';
+  const fontWeight = textStyle === 'light' ? '400' : '700';
+
+  let x: string, y: number, anchor: string;
+  switch (placement) {
+    case 'center':
+      x = '50%'; y = Math.round(h * 0.88); anchor = 'middle'; break;
+    case 'bottom-center':
+      x = '50%'; y = Math.round(h * 0.92); anchor = 'middle'; break;
+    default: // bottom-left
+      x = `${Math.round(w * 0.06)}`; y = Math.round(h * 0.90); anchor = 'start'; break;
+  }
+
+  const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+  <defs>
+    <style>@font-face { font-family: "InterOverlay"; src: url(data:font/truetype;base64,${fontBase64}); }</style>
+  </defs>
+  <text x="${x}" y="${y}" text-anchor="${anchor}"
+    font-family="InterOverlay" font-size="${fontSize}" font-weight="${fontWeight}"
+    fill="${textColor}" fill-opacity="0.85"${letterSpacing}>${escapeXml(transform)}</text>
+</svg>`;
+
+  return sharp(bgBuffer)
+    .composite([{ input: Buffer.from(overlaySvg), top: 0, left: 0 }])
+    .png()
+    .toBuffer();
+}
+
+function escapeXml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 // Simple hash for brand variety
 function hashString(str: string): number {
   let hash = 0;
@@ -171,10 +275,14 @@ export async function generateSocialKit(
   logoPngBuffer: Buffer,
   palette: BrandPalette,
   signals: BrandSignals,
-  domainName: string
+  domainName: string,
+  strategy?: SocialStrategy
 ): Promise<SocialAsset[]> {
   const assets: SocialAsset[] = [];
   const brandHash = hashString(domainName);
+
+  const bgTreatments = strategy?.backgroundTreatments;
+  const overlay = strategy?.typographyOverlay;
 
   for (const size of SOCIAL_SIZES) {
     const logoSize = Math.round(Math.min(size.w, size.h) * size.logoPct);
@@ -186,28 +294,32 @@ export async function generateSocialKit(
     let addPadding = false;
 
     if (size.layout === 'profile-icon') {
+      // Profile icons always use solid bg for recognizability
       bgSvg = buildProfileBg(size.w, size.h, palette);
       addPadding = true;
     } else if (size.layout === 'og-image') {
-      bgSvg = buildOgBg(size.w, size.h, palette);
+      bgSvg = bgTreatments
+        ? selectBgByStrategy(size.w, size.h, palette, brandHash, bgTreatments.og)
+        : buildOgBg(size.w, size.h, palette);
       addPadding = true;
     } else {
       // Banner
-      bgSvg = selectBannerBg(size.w, size.h, palette, brandHash);
+      bgSvg = bgTreatments
+        ? selectBgByStrategy(size.w, size.h, palette, brandHash, bgTreatments.banner)
+        : selectBannerBg(size.w, size.h, palette, brandHash);
       const bgStyle = brandHash % 4;
-      if (bgStyle === 2) {
-        // Split layout: logo goes on the right side
+      if (!bgTreatments && bgStyle === 2) {
+        // Split layout: logo goes on the right side (only for algorithmic fallback)
         logoLeft = Math.round(size.w * 0.52);
         logoTop = Math.round((size.h - logoSize) / 2);
         logoGravity = undefined;
       } else {
-        // Other styles: center the logo
         logoGravity = 'centre';
       }
     }
 
     // Render SVG background to PNG
-    const bgBuffer = await sharp(Buffer.from(bgSvg))
+    let bgBuffer = await sharp(Buffer.from(bgSvg))
       .resize(size.w, size.h)
       .png()
       .toBuffer();
@@ -242,10 +354,24 @@ export async function generateSocialKit(
       ? { input: logoComposite, gravity: logoGravity }
       : { input: logoComposite, top: logoTop!, left: logoLeft! };
 
-    const buffer = await sharp(bgBuffer)
+    let buffer = await sharp(bgBuffer)
       .composite([compositeOptions])
       .png()
       .toBuffer();
+
+    // Add text overlays for banners and OG images when strategy is available
+    if (overlay && size.layout === 'wide-banner' && overlay.taglineOnBanners && overlay.taglineText) {
+      buffer = await renderTextOverlay(
+        buffer, size.w, size.h,
+        overlay.taglineText, overlay.textPlacement, overlay.textStyle, palette
+      );
+    }
+    if (overlay && size.layout === 'og-image' && overlay.domainOnOgImages) {
+      buffer = await renderTextOverlay(
+        buffer, size.w, size.h,
+        domainName, overlay.textPlacement, overlay.textStyle, palette
+      );
+    }
 
     assets.push({
       platform: size.platform,

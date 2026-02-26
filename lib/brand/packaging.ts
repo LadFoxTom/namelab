@@ -4,6 +4,7 @@ import { BrandPalette } from './palette';
 import { FontPairing } from './typography';
 import { SocialAsset } from './socialKit';
 import { FaviconAsset } from './favicons';
+import { BusinessCardAsset } from './businessCards';
 
 interface PackageAssets {
   domainName: string;
@@ -19,6 +20,7 @@ interface PackageAssets {
   socialKit?: SocialAsset[];
   favicons: FaviconAsset[];
   brandPdf?: Buffer;
+  businessCards?: BusinessCardAsset[];
   tier: 'LOGO_ONLY' | 'BRAND_KIT' | 'BRAND_KIT_PRO';
 }
 
@@ -96,6 +98,12 @@ ${assets.fonts.googleFontsUrl}
       `.trim();
       archive.append(Buffer.from(fontGuide), { name: `${name}/brand/typography.md` });
 
+      if (assets.businessCards) {
+        for (const card of assets.businessCards) {
+          archive.append(card.buffer, { name: `${name}/business-cards/${card.filename}` });
+        }
+      }
+
       if (assets.brandPdf) {
         archive.append(assets.brandPdf, { name: `${name}/brand/brand-guidelines.pdf` });
       }
@@ -109,6 +117,7 @@ ${assets.tier === 'LOGO_ONLY' ? `- logo/ — PNG (original + transparent) + SVG\
 `- logo/ — PNG (original + transparent + with-name + name-only) + SVG
 - favicons/ — All sizes + .ico + webmanifest
 - social-media/ — 20 platform-sized assets
+- business-cards/ — Print-ready PNG + PDF templates
 - brand/ — Color palette, typography guide, brand guidelines PDF`}
 
 ## License

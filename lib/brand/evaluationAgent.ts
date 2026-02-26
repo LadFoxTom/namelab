@@ -93,6 +93,70 @@ Flag these problems if present:
 - Dark/colored background → flag "dark_background"
 - Heavy gradients → flag "gradient_heavy"
 - Generic shape (circle, square, basic triangle) with no distinctive quality → note in refinement`,
+
+  pictorial: `
+You are evaluating a PICTORIAL MARK — a recognizable, literal icon (e.g. a coffee cup, mountain, leaf) with NO text.
+
+Score on these dimensions (each 0-25):
+1. Recognition: Is the subject immediately identifiable? A clear depiction of a real-world object or concept.
+2. Simplification: Is it stylized and simplified enough for logo use, not overly detailed or illustrative?
+3. Style compliance: Absolutely NO text, letters, or readable words anywhere in the image.
+4. Scalability + background: Simple enough to work at 16px, white/transparent background, no shadows or gradients.
+
+Flag these problems if present:
+- Any text or letters visible → flag "text_in_abstract"
+- Icon is too detailed/complex → flag "too_complex"
+- Photorealistic rendering → flag "photorealistic"
+- Dark/colored background → flag "dark_background"
+- Cannot identify what the icon represents → note in refinement`,
+
+  mascot: `
+You are evaluating a MASCOT LOGO — a character illustration used as a brand mark, with NO text.
+
+Score on these dimensions (each 0-25):
+1. Character quality: Is the character distinctive, appealing, and brand-appropriate? Not generic clip art.
+2. Simplicity: Is it simple enough for logo use? Flat vector style, not overly detailed.
+3. Style compliance: NO text, letters, or words. Character illustration only.
+4. Scalability + background: Works at small sizes, white/transparent background, no shadows.
+
+Flag these problems if present:
+- Any text or letters visible → flag "text_in_abstract"
+- Photorealistic or 3D rendered character → flag "photorealistic"
+- Too complex/detailed for small sizes → flag "too_complex"
+- Dark/colored background → flag "dark_background"
+- Character is generic/uninteresting → note in refinement`,
+
+  emblem: `
+You are evaluating an EMBLEM LOGO — a unified badge, crest, or seal with the brand name integrated into the shape.
+
+Score on these dimensions (each 0-25):
+1. Unity: Do text and decorative elements form ONE cohesive badge/seal shape? Not separate elements floating apart.
+2. Typography: Is the brand name legible within the emblem structure?
+3. Design quality: Is the emblem balanced, professional, and distinctive? Not a generic circle with text.
+4. Scalability + background: Works at small sizes, white/transparent background, no shadows or gradients.
+
+Flag these problems if present:
+- Text and icon are separate (not integrated into one badge) → flag "wrong_style"
+- Text is illegible or too small within the emblem → flag "bad_typography"
+- Dark/colored background → flag "dark_background"
+- Too complex/detailed → flag "too_complex"
+- Drop shadows or 3D effects → flag "drop_shadows"`,
+
+  dynamic: `
+You are evaluating a DYNAMIC/STACKED logo — an icon ABOVE the brand name text in a vertical stack layout.
+
+Score on these dimensions (each 0-25):
+1. Layout: Is the icon clearly positioned above the text in a vertical stack? The composition should be compact and square-friendly.
+2. Icon quality: Is the icon simple, distinctive, and relevant?
+3. Typography: Is the brand name clearly readable below the icon?
+4. Scalability + background: Works at small sizes, white/transparent background, no shadows.
+
+Flag these problems if present:
+- Horizontal/side-by-side layout instead of vertical stack → flag "wrong_style"
+- No icon present, only text → flag "wrong_style"
+- No text present, only icon → flag "wrong_style"
+- Dark/colored background → flag "dark_background"
+- Drop shadows or 3D effects → flag "drop_shadows"`,
 };
 
 export async function evaluateConcept(

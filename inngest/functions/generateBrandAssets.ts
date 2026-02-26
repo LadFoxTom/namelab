@@ -7,8 +7,10 @@ import { selectTypeSystem } from '@/lib/brand/typographer';
 import { buildColorSystem } from '@/lib/brand/colorist';
 import { runCriticQA } from '@/lib/brand/critic';
 import { generateSocialKit } from '@/lib/brand/socialKit';
+import { generateSocialStrategy } from '@/lib/brand/socialDirector';
 import { generateFaviconPackage } from '@/lib/brand/favicons';
 import { generateBrandPdf } from '@/lib/brand/brandPdf';
+import { generateBusinessCards } from '@/lib/brand/businessCards';
 import { assembleZip } from '@/lib/brand/packaging';
 import { uploadBufferAndGetSignedUrl, downloadFromR2 } from '@/lib/brand/storage';
 import { BrandSignals } from '@/lib/brand/signals';
@@ -94,8 +96,11 @@ export const generateBrandAssets = inngest.createFunction(
 
       let socialKit = undefined;
       let brandPdf = undefined;
+      let businessCards = undefined;
       if (tier !== 'LOGO_ONLY') {
-        socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, domainName);
+        const socialStrategy = brief ? await generateSocialStrategy(brief, signals) : undefined;
+        socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, domainName, socialStrategy);
+        businessCards = await generateBusinessCards(logoPngBuffer, finalPalette, domainName, brief);
         brandPdf = await generateBrandPdf(domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts, brief, typeSystem, finalColorSystem);
       }
 
@@ -113,6 +118,7 @@ export const generateBrandAssets = inngest.createFunction(
         socialKit,
         favicons,
         brandPdf,
+        businessCards,
         tier,
       });
 

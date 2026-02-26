@@ -8,6 +8,7 @@ export interface BrandPreferences {
   tone?: string;
   colorPreference?: string;
   iconStyle?: string;
+  selectedStyles?: string[];
 }
 
 interface BrandBriefFormProps {
@@ -27,21 +28,35 @@ const TONES = [
   { value: 'sophisticated', label: 'Sophisticated' },
 ];
 
-const ICON_STYLES = [
-  { value: 'minimal', label: 'Minimal' },
-  { value: 'geometric', label: 'Geometric' },
-  { value: 'organic', label: 'Organic' },
-  { value: 'abstract', label: 'Abstract' },
-  { value: 'lettermark', label: 'Lettermark' },
-  { value: 'mascot', label: 'Mascot' },
+const LOGO_STYLES = [
+  { value: 'wordmark', label: 'Wordmark', desc: 'Typography only' },
+  { value: 'icon_wordmark', label: 'Icon + Text', desc: 'Icon beside name' },
+  { value: 'monogram', label: 'Monogram', desc: 'Stylized initials' },
+  { value: 'abstract_mark', label: 'Abstract', desc: 'Geometric symbol' },
+  { value: 'pictorial', label: 'Pictorial', desc: 'Recognizable icon' },
+  { value: 'mascot', label: 'Mascot', desc: 'Character illustration' },
+  { value: 'emblem', label: 'Emblem', desc: 'Badge/crest design' },
+  { value: 'dynamic', label: 'Dynamic', desc: 'Stacked icon + text' },
 ];
+
+const ALL_STYLE_VALUES = LOGO_STYLES.map(s => s.value);
 
 export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack }: BrandBriefFormProps) {
   const [businessDescription, setBusinessDescription] = useState(searchQuery);
   const [logoDescription, setLogoDescription] = useState('');
   const [tone, setTone] = useState<string | null>(null);
   const [colorPreference, setColorPreference] = useState('');
-  const [iconStyle, setIconStyle] = useState<string | null>(null);
+  const [selectedStyles, setSelectedStyles] = useState<string[]>(ALL_STYLE_VALUES);
+
+  const toggleStyle = (value: string) => {
+    setSelectedStyles(prev => {
+      if (prev.includes(value)) {
+        if (prev.length <= 1) return prev; // minimum 1
+        return prev.filter(s => s !== value);
+      }
+      return [...prev, value];
+    });
+  };
 
   const handleSubmit = () => {
     onSubmit({
@@ -49,7 +64,7 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
       logoDescription: logoDescription.trim() || undefined,
       tone: tone ?? undefined,
       colorPreference: colorPreference.trim() || undefined,
-      iconStyle: iconStyle ?? undefined,
+      selectedStyles,
     });
   };
 
@@ -124,21 +139,21 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
           />
         </div>
 
-        {/* Icon style */}
+        {/* Logo styles (multi-select) */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Icon style</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Logo styles to generate</label>
           <div className="flex flex-wrap gap-2">
-            {ICON_STYLES.map((s) => (
+            {LOGO_STYLES.map((s) => (
               <button
                 key={s.value}
-                onClick={() => setIconStyle(iconStyle === s.value ? null : s.value)}
+                onClick={() => toggleStyle(s.value)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                  iconStyle === s.value
+                  selectedStyles.includes(s.value)
                     ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {s.label}
+                {s.label} <span className="text-[11px] opacity-60">— {s.desc}</span>
               </button>
             ))}
           </div>
@@ -150,7 +165,7 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
         disabled={!businessDescription.trim()}
         className="mt-6 w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-purple-200/50 hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
       >
-        Generate 4 logo concepts
+        Generate {selectedStyles.length} logo concept{selectedStyles.length !== 1 ? 's' : ''}
       </button>
     </div>
   );

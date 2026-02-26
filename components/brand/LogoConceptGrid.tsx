@@ -20,6 +20,10 @@ const STYLE_LABELS: Record<string, string> = {
   icon_wordmark: 'Icon + Text',
   monogram: 'Monogram',
   abstract_mark: 'Abstract Mark',
+  pictorial: 'Pictorial',
+  mascot: 'Mascot',
+  emblem: 'Emblem',
+  dynamic: 'Dynamic',
 };
 
 export function LogoConceptGrid({ concepts, selectedId, onSelect }: LogoConceptGridProps) {
@@ -38,7 +42,7 @@ export function LogoConceptGrid({ concepts, selectedId, onSelect }: LogoConceptG
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {concepts.map((concept) => (
           <button
             key={concept.id}

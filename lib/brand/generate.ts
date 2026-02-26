@@ -20,7 +20,7 @@ export interface GeneratedConcept {
   passedEvaluation: boolean;
 }
 
-const LOGO_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark'];
+const LOGO_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark', 'pictorial', 'mascot', 'emblem', 'dynamic'];
 const FAL_CONCURRENCY = 2;
 const MAX_ATTEMPTS = 2;
 

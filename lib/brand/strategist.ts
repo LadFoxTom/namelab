@@ -156,7 +156,7 @@ Return a JSON object with this exact structure:
     "suggestedAccentHex": "#hex"
   },
   "logoGuidance": {
-    "preferredStyles": ["ordered list from: wordmark, icon_wordmark, monogram, abstract_mark"],
+    "preferredStyles": ["ordered list from: wordmark, icon_wordmark, monogram, abstract_mark, pictorial, mascot, emblem, dynamic"],
     "geometry": "string (circular, angular, organic, geometric, freeform)",
     "strokeWeight": "light | medium | bold",
     "conceptSeeds": ["2-3 specific conceptual starting points for the logo"]
@@ -197,7 +197,7 @@ Return a JSON object with this exact structure:
       suggestedAccentHex: parsed.colorGuidance?.suggestedAccentHex || '#60A5FA',
     },
     logoGuidance: {
-      preferredStyles: parsed.logoGuidance?.preferredStyles || ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark'],
+      preferredStyles: parsed.logoGuidance?.preferredStyles || ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark', 'pictorial', 'mascot', 'emblem', 'dynamic'],
       geometry: parsed.logoGuidance?.geometry || 'geometric',
       strokeWeight: parsed.logoGuidance?.strokeWeight || 'medium',
       conceptSeeds: parsed.logoGuidance?.conceptSeeds || [],

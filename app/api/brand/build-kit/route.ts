@@ -8,8 +8,10 @@ import { selectTypeSystem } from '@/lib/brand/typographer';
 import { buildColorSystem } from '@/lib/brand/colorist';
 import { runCriticQA } from '@/lib/brand/critic';
 import { generateSocialKit } from '@/lib/brand/socialKit';
+import { generateSocialStrategy } from '@/lib/brand/socialDirector';
 import { generateFaviconPackage } from '@/lib/brand/favicons';
 import { generateBrandPdf } from '@/lib/brand/brandPdf';
+import { generateBusinessCards } from '@/lib/brand/businessCards';
 import { assembleZip } from '@/lib/brand/packaging';
 import { BrandSignals } from '@/lib/brand/signals';
 import { DesignBrief } from '@/lib/brand/strategist';
@@ -112,18 +114,21 @@ export async function POST(req: NextRequest) {
     // 9. Favicons
     const favicons = await generateFaviconPackage(logoPngBuffer, session.domainName);
 
-    // 10-11. Social kit + PDF (for BRAND_KIT and BRAND_KIT_PRO)
+    // 10-12. Social kit, business cards, PDF (for BRAND_KIT and BRAND_KIT_PRO)
     let socialKit = undefined;
     let brandPdf = undefined;
+    let businessCards = undefined;
     if (tier !== 'LOGO_ONLY') {
-      socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, session.domainName);
+      const socialStrategy = brief ? await generateSocialStrategy(brief, signals) : undefined;
+      socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, session.domainName, socialStrategy);
+      businessCards = await generateBusinessCards(logoPngBuffer, finalPalette, session.domainName, brief);
       brandPdf = await generateBrandPdf(
         session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts,
         brief, typeSystem, finalColorSystem
       );
     }
 
-    // 12. Assemble ZIP
+    // 13. Assemble ZIP
     const zipBuffer = await assembleZip({
       domainName: session.domainName,
       logoPng: logoPngBuffer,
@@ -138,6 +143,7 @@ export async function POST(req: NextRequest) {
       socialKit,
       favicons,
       brandPdf,
+      businessCards,
       tier: tier as any,
     });
 

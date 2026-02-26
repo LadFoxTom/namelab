@@ -4,17 +4,16 @@ import { generateDesignBrief, briefToSignals, DesignBrief } from '@/lib/brand/st
 import { generateLogoConcepts, GeneratedConcept } from '@/lib/brand/generate';
 import { pregeneratePalette } from '@/lib/brand/palettePregen';
 import { downloadToBuffer } from '@/lib/brand/postprocess';
-import { applyWatermark } from '@/lib/brand/watermark';
 import { uploadToR2 } from '@/lib/brand/storage';
 import { LogoStyle } from '@/lib/brand/prompts';
 
-const LOGO_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark'];
+const LOGO_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark', 'pictorial', 'mascot', 'emblem', 'dynamic'];
 
 export const generateBrandPreviews = inngest.createFunction(
   {
     id: 'generate-brand-previews',
     retries: 1,
-    timeouts: { finish: '5m' },
+    timeouts: { finish: '10m' },
     onFailure: async ({ event }) => {
       const brandSessionId = event.data.event.data.brandSessionId;
       if (brandSessionId) {
@@ -60,10 +59,14 @@ export const generateBrandPreviews = inngest.createFunction(
     const signals = brief.signals;
     const designBrief = brief.brief;
 
-    // Steps 2-5: Generate one style at a time (~15-30s each, fits in 60s limit)
+    // Steps 2-9: Generate one style at a time (~15-30s each, fits in 60s limit)
     const allConcepts: GeneratedConcept[] = [];
 
-    for (const style of LOGO_STYLES) {
+    const selectedStyles: LogoStyle[] = preferences?.selectedStyles?.length
+      ? (preferences.selectedStyles as LogoStyle[])
+      : LOGO_STYLES;
+
+    for (const style of selectedStyles) {
       const concepts = await step.run(`generate-${style}`, async () => {
         const palette = pregeneratePalette(signals, designBrief);
         return generateLogoConcepts(signals, palette, [style], designBrief);
@@ -71,7 +74,7 @@ export const generateBrandPreviews = inngest.createFunction(
       allConcepts.push(...concepts);
     }
 
-    // Step 6: Watermark, upload to R2, save to DB (~10-20s)
+    // Step 6: Upload to R2, save to DB (~10-20s)
     await step.run('process-and-save', async () => {
       await prisma.brandSession.update({
         where: { id: brandSessionId },
@@ -83,9 +86,9 @@ export const generateBrandPreviews = inngest.createFunction(
 
         const imageBuffer = await downloadToBuffer(concept.imageUrl);
 
-        const watermarkedBuffer = await applyWatermark(imageBuffer);
+        // Upload clean (unwatermarked) preview — previews serve as portfolio examples
         const previewKey = `brand/${brandSessionId}/previews/${concept.style}-${i}.png`;
-        const previewUrl = await uploadToR2(previewKey, watermarkedBuffer, 'image/png', true);
+        const previewUrl = await uploadToR2(previewKey, imageBuffer, 'image/png', true);
 
         const originalKey = `brand/${brandSessionId}/originals/${concept.style}-${i}.png`;
         await uploadToR2(originalKey, imageBuffer, 'image/png', false);
