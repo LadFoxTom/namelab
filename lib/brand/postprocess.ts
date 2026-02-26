@@ -1,5 +1,17 @@
 import { fal } from '@fal-ai/client';
 import sharp from 'sharp';
+import path from 'path';
+import fs from 'fs';
+
+// Cache the embedded font for SVG text rendering (Sharp can't access system fonts)
+let _fontBase64: string | null = null;
+function getInterBoldBase64(): string {
+  if (!_fontBase64) {
+    const fontPath = path.join(process.cwd(), 'lib/brand/fonts/Inter-Bold.ttf');
+    _fontBase64 = fs.readFileSync(fontPath).toString('base64');
+  }
+  return _fontBase64;
+}
 
 fal.config({ credentials: process.env.FAL_KEY! });
 
@@ -89,9 +101,39 @@ export async function removeWhiteBackground(imageBuffer: Buffer, threshold = 245
     .toBuffer();
 }
 
+function escXml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Render brand name text as a PNG buffer using embedded Inter Bold font */
+async function renderBrandText(
+  brandName: string,
+  color: string,
+  width: number,
+  height: number,
+  fontSize: number
+): Promise<Buffer> {
+  const fontB64 = getInterBoldBase64();
+  const textSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+  <defs>
+    <style>
+      @font-face {
+        font-family: 'InterBrand';
+        src: url('data:font/truetype;base64,${fontB64}');
+      }
+    </style>
+  </defs>
+  <text x="${width / 2}" y="${height * 0.72}"
+    font-family="InterBrand" font-size="${fontSize}" font-weight="700"
+    fill="${color}" text-anchor="middle">${escXml(brandName)}</text>
+</svg>`;
+
+  return sharp(Buffer.from(textSvg)).resize(width, height).png().toBuffer();
+}
+
 /**
  * Composite a logo with brand name text below it.
- * Used for abstract marks that need a "logo + name" variant.
+ * Returns white background version.
  */
 export async function compositeLogoWithText(
   logoPngBuffer: Buffer,
@@ -102,30 +144,16 @@ export async function compositeLogoWithText(
 ): Promise<Buffer> {
   const logoSize = Math.round(outputWidth * 0.5);
   const textHeight = Math.round(outputWidth * 0.12);
-  const totalHeight = Math.round(logoSize + textHeight + outputWidth * 0.08);
-  const fontSize = Math.round(outputWidth * 0.06);
+  const totalHeight = Math.round(logoSize + textHeight + outputWidth * 0.1);
+  const fontSize = Math.round(outputWidth * 0.055);
 
-  // Resize logo
   const resizedLogo = await sharp(logoPngBuffer)
     .resize(logoSize, logoSize, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
     .png()
     .toBuffer();
 
-  // Create text SVG
-  const escName = brandName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const textSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${textHeight}">
-    <text x="${outputWidth / 2}" y="${textHeight * 0.7}"
-      font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
-      font-size="${fontSize}" font-weight="600"
-      fill="${darkColor}" text-anchor="middle">${escName}</text>
-  </svg>`;
+  const textBuffer = await renderBrandText(brandName, darkColor, outputWidth, textHeight, fontSize);
 
-  const textBuffer = await sharp(Buffer.from(textSvg))
-    .resize(outputWidth, textHeight)
-    .png()
-    .toBuffer();
-
-  // White canvas with logo centered on top, text below
   const logoLeft = Math.round((outputWidth - logoSize) / 2);
   const logoTop = Math.round(outputWidth * 0.04);
   const textTop = logoTop + logoSize + Math.round(outputWidth * 0.02);
@@ -139,6 +167,70 @@ export async function compositeLogoWithText(
     ])
     .png()
     .toBuffer();
+}
+
+/**
+ * Composite a logo with brand name text below it — transparent background.
+ */
+export async function compositeLogoWithTextTransparent(
+  logoPngBuffer: Buffer,
+  brandName: string,
+  darkColor: string,
+  outputWidth = 2000
+): Promise<Buffer> {
+  const logoSize = Math.round(outputWidth * 0.5);
+  const textHeight = Math.round(outputWidth * 0.12);
+  const totalHeight = Math.round(logoSize + textHeight + outputWidth * 0.1);
+  const fontSize = Math.round(outputWidth * 0.055);
+
+  // Use transparent-bg logo
+  const transparentLogo = await removeWhiteBackground(logoPngBuffer);
+  const resizedLogo = await sharp(transparentLogo)
+    .resize(logoSize, logoSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+
+  const textBuffer = await renderBrandText(brandName, darkColor, outputWidth, textHeight, fontSize);
+
+  const logoLeft = Math.round((outputWidth - logoSize) / 2);
+  const logoTop = Math.round(outputWidth * 0.04);
+  const textTop = logoTop + logoSize + Math.round(outputWidth * 0.02);
+
+  return sharp({
+    create: { width: outputWidth, height: totalHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
+  })
+    .composite([
+      { input: resizedLogo, top: logoTop, left: logoLeft },
+      { input: textBuffer, top: textTop, left: 0 },
+    ])
+    .png()
+    .toBuffer();
+}
+
+/**
+ * Generate a brand name text image (no logo).
+ * Returns both white-bg and transparent-bg versions.
+ */
+export async function generateNameImages(
+  brandName: string,
+  darkColor: string,
+  outputWidth = 2000
+): Promise<{ nameWhiteBg: Buffer; nameTransparent: Buffer }> {
+  const height = Math.round(outputWidth * 0.2);
+  const fontSize = Math.round(outputWidth * 0.08);
+
+  const textBuffer = await renderBrandText(brandName, darkColor, outputWidth, height, fontSize);
+
+  // White background version
+  const nameWhiteBg = await sharp({
+    create: { width: outputWidth, height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 255 } }
+  })
+    .composite([{ input: textBuffer, top: 0, left: 0 }])
+    .png()
+    .toBuffer();
+
+  // Transparent background version (textBuffer already has transparent bg from SVG)
+  return { nameWhiteBg, nameTransparent: textBuffer };
 }
 
 export async function svgToHighResPng(svgString: string, size = 2000): Promise<Buffer> {

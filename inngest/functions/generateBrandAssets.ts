@@ -1,6 +1,6 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
-import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng, compositeLogoWithText } from '@/lib/brand/postprocess';
+import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng, compositeLogoWithText, compositeLogoWithTextTransparent, generateNameImages } from '@/lib/brand/postprocess';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
 import { selectTypeSystem } from '@/lib/brand/typographer';
@@ -74,15 +74,20 @@ export const generateBrandAssets = inngest.createFunction(
         finalColorSystem = qa.fixedColorSystem ?? colorSystem;
       }
 
-      // Generate logo-with-text composite for abstract marks and monograms
+      // Generate logo-with-text composites and name images
       let logoWithTextPng: Buffer | undefined;
-      if (conceptStyle === 'abstract_mark' || conceptStyle === 'monogram') {
-        try {
-          const brandName = brief?.brandName || domainName.charAt(0).toUpperCase() + domainName.slice(1);
-          logoWithTextPng = await compositeLogoWithText(logoPngBuffer, brandName, finalPalette.primary, finalPalette.dark);
-        } catch (err: any) {
-          console.warn('Logo-with-text composite failed:', err.message);
-        }
+      let logoWithTextTransparentPng: Buffer | undefined;
+      let nameWhiteBgPng: Buffer | undefined;
+      let nameTransparentPng: Buffer | undefined;
+      const brandName = brief?.brandName || domainName.charAt(0).toUpperCase() + domainName.slice(1);
+      try {
+        logoWithTextPng = await compositeLogoWithText(logoPngBuffer, brandName, finalPalette.primary, finalPalette.dark);
+        logoWithTextTransparentPng = await compositeLogoWithTextTransparent(logoPngBuffer, brandName, finalPalette.dark);
+        const nameImages = await generateNameImages(brandName, finalPalette.dark);
+        nameWhiteBgPng = nameImages.nameWhiteBg;
+        nameTransparentPng = nameImages.nameTransparent;
+      } catch (err: any) {
+        console.warn('Logo-with-text/name composites failed:', err.message);
       }
 
       const favicons = await generateFaviconPackage(logoPngBuffer, domainName);
@@ -99,6 +104,9 @@ export const generateBrandAssets = inngest.createFunction(
         logoPng: logoPngBuffer,
         logoPngTransparent,
         logoWithTextPng,
+        logoWithTextTransparentPng,
+        nameWhiteBgPng,
+        nameTransparentPng,
         logoSvg,
         palette: finalPalette,
         fonts,

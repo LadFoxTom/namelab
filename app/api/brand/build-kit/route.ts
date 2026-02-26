@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng, compositeLogoWithText } from '@/lib/brand/postprocess';
+import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng, compositeLogoWithText, compositeLogoWithTextTransparent, generateNameImages } from '@/lib/brand/postprocess';
 import { downloadFromR2 } from '@/lib/brand/storage';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
@@ -93,16 +93,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 8b. Generate logo-with-text composite (for abstract marks and monograms that lack brand name)
+    // 8b. Generate logo-with-text composites and name images
     let logoWithTextPng: Buffer | undefined;
-    const conceptStyle = (concept as any).style as string | undefined;
-    if (conceptStyle === 'abstract_mark' || conceptStyle === 'monogram') {
-      try {
-        const brandName = brief?.brandName || session.domainName.charAt(0).toUpperCase() + session.domainName.slice(1);
-        logoWithTextPng = await compositeLogoWithText(logoPngBuffer, brandName, finalPalette.primary, finalPalette.dark);
-      } catch (err: any) {
-        console.warn('Logo-with-text composite failed:', err.message);
-      }
+    let logoWithTextTransparentPng: Buffer | undefined;
+    let nameWhiteBgPng: Buffer | undefined;
+    let nameTransparentPng: Buffer | undefined;
+    const brandName = brief?.brandName || session.domainName.charAt(0).toUpperCase() + session.domainName.slice(1);
+    try {
+      logoWithTextPng = await compositeLogoWithText(logoPngBuffer, brandName, finalPalette.primary, finalPalette.dark);
+      logoWithTextTransparentPng = await compositeLogoWithTextTransparent(logoPngBuffer, brandName, finalPalette.dark);
+      const nameImages = await generateNameImages(brandName, finalPalette.dark);
+      nameWhiteBgPng = nameImages.nameWhiteBg;
+      nameTransparentPng = nameImages.nameTransparent;
+    } catch (err: any) {
+      console.warn('Logo-with-text/name composites failed:', err.message);
     }
 
     // 9. Favicons
@@ -125,6 +129,9 @@ export async function POST(req: NextRequest) {
       logoPng: logoPngBuffer,
       logoPngTransparent,
       logoWithTextPng,
+      logoWithTextTransparentPng,
+      nameWhiteBgPng,
+      nameTransparentPng,
       logoSvg,
       palette: finalPalette,
       fonts,

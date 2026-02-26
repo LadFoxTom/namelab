@@ -650,14 +650,14 @@ function drawTypographyPage(ctx: PdfContext, fonts: FontPairing, signals: BrandS
 
   // Display Font — show font name prominently
   drawSectionLabel(page, ctx, `Display — ${fonts.heading.name}`, 48, y);
-  y -= 24;
+  y -= 42;
 
   // Specimen at descending sizes
   const headingSizes = [
-    { size: 32, label: 'Display' },
-    { size: 24, label: 'H1' },
-    { size: 18, label: 'H2' },
-    { size: 14, label: 'H3' },
+    { size: 28, label: 'Display' },
+    { size: 22, label: 'H1' },
+    { size: 16, label: 'H2' },
+    { size: 13, label: 'H3' },
   ];
   headingSizes.forEach(({ size, label }) => {
     drawTextSafe(page, ctx.brandTitle, { x: 48, y, size, font: ctx.fontBold, color: c(ctx.dark), maxWidth: maxTextW - 50 });

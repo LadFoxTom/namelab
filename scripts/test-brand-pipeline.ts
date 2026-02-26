@@ -33,7 +33,7 @@
  */
 
 import { prisma } from '../lib/prisma';
-import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground } from '../lib/brand/postprocess';
+import { upscaleImage, downloadToBuffer, vectorizeToSvg, removeWhiteBackground, compositeLogoWithText, compositeLogoWithTextTransparent, generateNameImages } from '../lib/brand/postprocess';
 import { extractBrandPalette } from '../lib/brand/palette';
 import { getFontPairing } from '../lib/brand/typography';
 import { selectTypeSystem } from '../lib/brand/typographer';
@@ -178,12 +178,36 @@ async function main() {
     console.log('11/11 Skipping brand PDF (LOGO_ONLY tier)');
   }
 
+  // Generate logo-with-text composites and name images
+  console.log('\nGenerating logo-with-text composites...');
+  const brandName = brief?.brandName || session.domainName.charAt(0).toUpperCase() + session.domainName.slice(1);
+  let logoWithTextPng: Buffer | undefined;
+  let logoWithTextTransparentPng: Buffer | undefined;
+  let nameWhiteBgPng: Buffer | undefined;
+  let nameTransparentPng: Buffer | undefined;
+  try {
+    logoWithTextPng = await compositeLogoWithText(logoPngBuffer, brandName, finalPalette.primary, finalPalette.dark);
+    console.log(`  Logo-with-text: ${(logoWithTextPng.length / 1024).toFixed(1)}KB`);
+    logoWithTextTransparentPng = await compositeLogoWithTextTransparent(logoPngBuffer, brandName, finalPalette.dark);
+    console.log(`  Logo-with-text transparent: ${(logoWithTextTransparentPng.length / 1024).toFixed(1)}KB`);
+    const nameImages = await generateNameImages(brandName, finalPalette.dark);
+    nameWhiteBgPng = nameImages.nameWhiteBg;
+    nameTransparentPng = nameImages.nameTransparent;
+    console.log(`  Name images: white=${(nameWhiteBgPng.length / 1024).toFixed(1)}KB, transparent=${(nameTransparentPng.length / 1024).toFixed(1)}KB`);
+  } catch (err: any) {
+    console.warn(`  Logo-with-text generation failed: ${err.message}`);
+  }
+
   // Assemble ZIP
   console.log('\nAssembling ZIP...');
   const zipBuffer = await assembleZip({
     domainName: session.domainName,
     logoPng: logoPngBuffer,
     logoPngTransparent,
+    logoWithTextPng,
+    logoWithTextTransparentPng,
+    nameWhiteBgPng,
+    nameTransparentPng,
     logoSvg,
     palette: finalPalette,
     fonts,
