@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fal } from '@fal-ai/client';
 import { prisma } from '@/lib/prisma';
-import { revisePromptWithFeedback } from '@/lib/brand/prompts';
 import { downloadToBuffer, ensurePng } from '@/lib/brand/postprocess';
 import { uploadToR2 } from '@/lib/brand/storage';
 
@@ -34,17 +33,15 @@ export async function POST(req: NextRequest) {
 
   const session = concept.brandSession;
 
-  // 2. Revise the prompt with GPT
-  const revisedPrompt = await revisePromptWithFeedback(concept.promptUsed, feedback.trim());
-
-  // 3. Generate refined image via Flux img2img (keeps the original composition)
-  const result = await fal.subscribe('fal-ai/flux/dev/image-to-image', {
+  // 2. Edit the image with Flux Kontext — purpose-built for natural language image editing.
+  //    The user's feedback is the edit instruction directly (no GPT prompt rewriting needed).
+  const result = await fal.subscribe('fal-ai/flux-kontext/dev', {
     input: {
       image_url: concept.previewUrl,
-      prompt: revisedPrompt,
-      strength: 0.6,
+      prompt: feedback.trim(),
       num_inference_steps: 28,
-      guidance_scale: 3.5,
+      guidance_scale: 2.5,
+      output_format: 'png',
       num_images: 1,
     },
     logs: false,
@@ -52,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const imageUrl: string = result.data.images[0].url;
 
-  // 4. Download + upload to R2
+  // 3. Download + upload to R2
   const rawBuffer = await downloadToBuffer(imageUrl);
   const pngBuffer = await ensurePng(rawBuffer);
 
@@ -62,7 +59,7 @@ export async function POST(req: NextRequest) {
   const publicPreviewUrl = await uploadToR2(previewKey, pngBuffer, 'image/png', true);
   await uploadToR2(originalKey, pngBuffer, 'image/png', false);
 
-  // 5. Update DB record
+  // 4. Update DB record
   const cacheBuster = `?v=${Date.now()}`;
   const newPreviewUrl = `${publicPreviewUrl}${cacheBuster}`;
 
@@ -71,7 +68,7 @@ export async function POST(req: NextRequest) {
     data: {
       previewUrl: newPreviewUrl,
       originalUrl: originalKey,
-      promptUsed: revisedPrompt,
+      promptUsed: concept.promptUsed,
     },
   });
 
