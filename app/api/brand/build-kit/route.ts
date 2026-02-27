@@ -10,7 +10,7 @@ import { buildColorSystem } from '@/lib/brand/colorist';
 import { runCriticQA } from '@/lib/brand/critic';
 import { generateSocialKit } from '@/lib/brand/socialKit';
 import { generateSocialStrategy } from '@/lib/brand/socialDirector';
-import { generateFaviconPackage } from '@/lib/brand/favicons';
+import { generateFaviconPackage, FaviconAsset } from '@/lib/brand/favicons';
 import { generateBrandPdf } from '@/lib/brand/brandPdf';
 import { generateBusinessCards } from '@/lib/brand/businessCards';
 import { assembleZip } from '@/lib/brand/packaging';
@@ -164,7 +164,13 @@ export async function POST(req: NextRequest) {
     }
 
     // 9. Favicons
-    const favicons = await generateFaviconPackage(logoPngBuffer, session.domainName);
+    let favicons: FaviconAsset[];
+    try {
+      favicons = await generateFaviconPackage(logoPngBuffer, session.domainName);
+    } catch (err: any) {
+      console.warn('Favicon generation failed:', err.message);
+      favicons = [];
+    }
 
     // 10-12. Social kit, business cards, PDF, print collateral (for BRAND_KIT and BRAND_KIT_PRO)
     let socialKit = undefined;
@@ -173,15 +179,45 @@ export async function POST(req: NextRequest) {
     let letterhead = undefined;
     let emailSignature = undefined;
     if (tier !== 'LOGO_ONLY') {
-      const socialStrategy = brief ? await generateSocialStrategy(brief, signals) : undefined;
-      socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, session.domainName, socialStrategy, conceptSalt);
-      businessCards = await generateBusinessCards(logoPngBuffer, finalPalette, session.domainName, brief);
-      letterhead = await generateLetterhead(logoPngBuffer, finalPalette, session.domainName, brief);
-      emailSignature = generateEmailSignature(finalPalette, session.domainName, brief);
-      brandPdf = await generateBrandPdf(
-        session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts,
-        brief, typeSystem, finalColorSystem, logoPngTransparent
-      );
+      let socialStrategy = undefined;
+      try {
+        socialStrategy = brief ? await generateSocialStrategy(brief, signals) : undefined;
+      } catch (err: any) {
+        console.warn('Social strategy generation failed:', err.message);
+      }
+
+      try {
+        socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, session.domainName, socialStrategy, conceptSalt);
+      } catch (err: any) {
+        console.warn('Social kit generation failed:', err.message);
+      }
+
+      try {
+        businessCards = await generateBusinessCards(logoPngBuffer, finalPalette, session.domainName, brief);
+      } catch (err: any) {
+        console.warn('Business cards generation failed:', err.message);
+      }
+
+      try {
+        letterhead = await generateLetterhead(logoPngBuffer, finalPalette, session.domainName, brief);
+      } catch (err: any) {
+        console.warn('Letterhead generation failed:', err.message);
+      }
+
+      try {
+        emailSignature = generateEmailSignature(finalPalette, session.domainName, brief);
+      } catch (err: any) {
+        console.warn('Email signature generation failed:', err.message);
+      }
+
+      try {
+        brandPdf = await generateBrandPdf(
+          session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts,
+          brief, typeSystem, finalColorSystem, logoPngTransparent
+        );
+      } catch (err: any) {
+        console.warn('Brand PDF generation failed:', err.message);
+      }
     }
 
     // 13. Assemble ZIP
@@ -225,9 +261,9 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Brand kit build failed:', error);
+    console.error('Brand kit build failed:', error?.message, error?.stack);
     return NextResponse.json(
-      { error: 'Brand kit generation failed', details: error.message },
+      { error: 'Brand kit generation failed', details: error?.message, stack: error?.stack },
       { status: 500 }
     );
   }
