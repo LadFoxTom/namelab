@@ -242,23 +242,45 @@ function wrapText(text: string, font: any, fontSize: number, maxWidth: number): 
   return lines;
 }
 
-/** Draw text safely, ensuring it doesn't exceed maxWidth by truncating */
-function drawTextSafe(page: any, text: string, opts: any) {
+/** Test if a font can encode all characters in a string */
+function canFontEncode(font: any, text: string): boolean {
+  try {
+    font.encodeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Draw text safely, ensuring it doesn't exceed maxWidth by truncating.
+ *  Falls back to fallbackFont if the primary font can't encode the text. */
+function drawTextSafe(page: any, text: string, opts: any & { fallbackFont?: any }) {
   if (!text) return;
-  const { font, size, maxWidth } = opts;
-  if (maxWidth && font) {
+  const { font, size, maxWidth, fallbackFont } = opts;
+  // Choose a font that can actually encode this text
+  const useFont = (font && canFontEncode(font, text)) ? font
+    : (fallbackFont && canFontEncode(fallbackFont, text)) ? fallbackFont
+    : font; // last resort — try original, let it throw if it must
+  const drawOpts = { ...opts, font: useFont };
+  delete drawOpts.fallbackFont;
+
+  if (maxWidth && useFont) {
     try {
       let t = text;
-      while (t.length > 3 && font.widthOfTextAtSize(t, size) > maxWidth) {
+      while (t.length > 3 && useFont.widthOfTextAtSize(t, size) > maxWidth) {
         t = t.slice(0, -1);
       }
       if (t.length < text.length) t = t.slice(0, -3) + '...';
-      page.drawText(t, opts);
+      page.drawText(t, { ...drawOpts });
     } catch {
-      page.drawText(text, opts);
+      try { page.drawText(text, drawOpts); } catch { /* skip */ }
     }
   } else {
-    page.drawText(text, opts);
+    try {
+      page.drawText(text, drawOpts);
+    } catch {
+      // Silently skip if text can't be encoded at all
+    }
   }
 }
 
@@ -474,9 +496,9 @@ function drawCoverPage(page: any, ctx: PdfContext, brief?: DesignBrief) {
   // Cover text color: dark for luxury (light bg), white for everything else
   const coverTextColor = ctx.template.id === 'luxury' ? ctx.dark : ctx.white;
 
-  // Brand name — use brand display font
+  // Brand name — use brand display font with fallback to Inter Bold
   const titleSize = 38;
-  const titleFont = ctx.brandDisplayFont;
+  const titleFont = canFontEncode(ctx.brandDisplayFont, ctx.brandTitle) ? ctx.brandDisplayFont : ctx.fontBold;
   const titleW = titleFont.widthOfTextAtSize(ctx.brandTitle, titleSize);
   const maxTitleW = width - 96;
   const actualTitleSize = titleW > maxTitleW ? titleSize * (maxTitleW / titleW) : titleSize;
@@ -485,15 +507,21 @@ function drawCoverPage(page: any, ctx: PdfContext, brief?: DesignBrief) {
 
   // Subtitle
   const subtitle = 'Brand Identity Guidelines';
-  const subW = ctx.fontLight.widthOfTextAtSize(subtitle, 13);
-  page.drawText(subtitle, { x: (width - subW) / 2, y: logoY - 62, size: 13, font: ctx.fontLight, color: c(coverTextColor), opacity: 0.6 });
+  const subFont = canFontEncode(ctx.fontLight, subtitle) ? ctx.fontLight : ctx.fontRegular;
+  const subW = subFont.widthOfTextAtSize(subtitle, 13);
+  page.drawText(subtitle, { x: (width - subW) / 2, y: logoY - 62, size: 13, font: subFont, color: c(coverTextColor), opacity: 0.6 });
 
-  // Tagline
+  // Tagline — with font fallback chain
   if (brief?.tagline) {
-    const tagW = ctx.fontRegular.widthOfTextAtSize(brief.tagline, 10);
-    const maxTagW = width - 120;
-    if (tagW <= maxTagW) {
-      page.drawText(brief.tagline, { x: (width - tagW) / 2, y: logoY - 85, size: 10, font: ctx.fontRegular, color: c(coverTextColor), opacity: 0.4 });
+    const tagFont = canFontEncode(ctx.brandBodyFont, brief.tagline) ? ctx.brandBodyFont
+      : canFontEncode(ctx.fontRegular, brief.tagline) ? ctx.fontRegular
+      : null;
+    if (tagFont) {
+      const tagW = tagFont.widthOfTextAtSize(brief.tagline, 10);
+      const maxTagW = width - 120;
+      if (tagW <= maxTagW) {
+        page.drawText(brief.tagline, { x: (width - tagW) / 2, y: logoY - 85, size: 10, font: tagFont, color: c(coverTextColor), opacity: 0.4 });
+      }
     }
   }
 
@@ -555,19 +583,25 @@ function drawTocPage(ctx: PdfContext, brief?: DesignBrief) {
   baseSections.push({ num: dosNum, title: "Do's & Don'ts", desc: 'Usage guidelines' });
   const sections = baseSections;
 
+  // Dynamic spacing: shrink when many sections to prevent overflow
+  const footerY = 50; // reserve space for footer
+  const availableH = (height - 140) - footerY;
+  const sectionSpacing = Math.min(62, Math.floor(availableH / sections.length));
+
   let y = height - 140;
   sections.forEach((s) => {
+    if (y < footerY) return; // safety: don't draw below footer
     page.drawText(s.num, { x: 48, y, size: 20, font: ctx.fontBold, color: c(ctx.accent), opacity: 0.4 });
     page.drawText(s.title, { x: 95, y: y + 2, size: 13, font: ctx.brandDisplayFont, color: c(ctx.pageFg) });
     page.drawText(s.desc, { x: 95, y: y - 15, size: 9, font: ctx.fontRegular, color: c(ctx.pageFg), opacity: 0.5 });
     page.drawRectangle({ x: 48, y: y - 28, width: width - 96, height: 0.5, color: c(ctx.pageFg), opacity: 0.06 });
-    y -= 62;
+    y -= sectionSpacing;
   });
 
-  // Brief summary card at bottom
-  if (brief) {
-    const cardY = 80;
+  // Brief summary card — only show if enough space remains (skip for 10+ sections)
+  if (brief && sections.length <= 9 && y > footerY + 120) {
     const cardH = 100;
+    const cardY = Math.max(footerY + 10, y - cardH);
     page.drawRectangle({ x: 48, y: cardY, width: width - 96, height: cardH, color: c(ctx.lightGray) });
     // Accent left bar
     page.drawRectangle({ x: 48, y: cardY, width: 3, height: cardH, color: c(ctx.accent) });
@@ -1793,11 +1827,12 @@ function drawDosDontsPage(ctx: PdfContext, palette: BrandPalette, brief?: Design
 
   y -= 16;
 
-  // Quick Reference Card
-  if (y > 120) {
-    const cardH = 100;
+  // Quick Reference Card — only draw if enough room above footer (footer at y~34)
+  const footerClearance = 50;
+  const qrCardH = 100;
+  if (y - qrCardH > footerClearance) {
     const cardColor = ctx.useDarkTheme ? ctx.dark : ctx.visPrimary;
-    page.drawRectangle({ x: 48, y: y - cardH, width: width - 96, height: cardH, color: c(cardColor) });
+    page.drawRectangle({ x: 48, y: y - qrCardH, width: width - 96, height: qrCardH, color: c(cardColor) });
     page.drawRectangle({ x: 48, y: y, width: width - 96, height: 2.5, color: c(ctx.accent) });
 
     page.drawText('Quick Reference', { x: 64, y: y - 18, size: 11, font: ctx.fontBold, color: c(ctx.white) });
@@ -1809,7 +1844,7 @@ function drawDosDontsPage(ctx: PdfContext, palette: BrandPalette, brief?: Design
       'Generated by Sparkdomain  ·  sparkdomain.xyz',
     ];
     refs.forEach((ref, i) => {
-      drawTextSafe(page, ref, { x: 64, y: y - 36 - (i * 16), size: 8, font: ctx.fontRegular, color: c(ctx.white), opacity: 0.8, maxWidth: width - 130 });
+      drawTextSafe(page, ref, { x: 64, y: y - 36 - (i * 16), size: 8, font: ctx.fontRegular, color: c(ctx.white), opacity: 0.8, maxWidth: width - 130, fallbackFont: ctx.fontRegular });
     });
   }
 

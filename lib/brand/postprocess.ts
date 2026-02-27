@@ -130,13 +130,26 @@ export async function removeWhiteBackground(imageBuffer: Buffer, threshold = 240
     }
   }
 
-  // Only make visited (border-connected) white pixels transparent
+  // Pass 1: Make visited (border-connected) white pixels transparent
   for (let i = 0; i < total; i++) {
     if (visited[i]) {
       const off = i * 4;
       const whiteness = Math.min(pixels[off], pixels[off + 1], pixels[off + 2]);
       const alpha = whiteness >= 250 ? 0 : Math.round((255 - whiteness) * 3);
       pixels[off + 3] = Math.min(pixels[off + 3], alpha);
+    }
+  }
+
+  // Pass 2: Also clear enclosed white pixels (e.g. letter counters in 'e', 'o', 'a').
+  // These are NOT border-connected but should still be transparent for logo use on
+  // colored backgrounds. Only target very white pixels that weren't already handled.
+  for (let i = 0; i < total; i++) {
+    if (!visited[i]) {
+      const off = i * 4;
+      if (pixels[off] >= threshold && pixels[off + 1] >= threshold && pixels[off + 2] >= threshold && pixels[off + 3] > 0) {
+        const whiteness = Math.min(pixels[off], pixels[off + 1], pixels[off + 2]);
+        pixels[off + 3] = whiteness >= 250 ? 0 : Math.round((255 - whiteness) * 3);
+      }
     }
   }
 
