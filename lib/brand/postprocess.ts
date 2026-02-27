@@ -140,9 +140,60 @@ export async function removeWhiteBackground(imageBuffer: Buffer, threshold = 240
     }
   }
 
-  // Enclosed white pixels (not border-connected) are ALWAYS preserved.
-  // They are part of the logo design (white fills, body colors, etc.)
-  // and must stay opaque so the logo remains readable on any background.
+  // Pass 2: Clear only TINY enclosed white regions — letter counters (holes in d, e, g, o, etc.).
+  // Larger enclosed white areas (logo body fills, design shapes) are preserved.
+  // Letter counters are typically < 0.15% of total image area; design fills are much larger.
+  const maxCounterArea = total * 0.0015;
+  const enclosedVisited = new Uint8Array(total);
+
+  for (let i = 0; i < total; i++) {
+    if (!visited[i] && !enclosedVisited[i]) {
+      const off = i * 4;
+      if (pixels[off] >= threshold && pixels[off + 1] >= threshold && pixels[off + 2] >= threshold && pixels[off + 3] > 0) {
+        // BFS to measure this enclosed white region
+        const region: number[] = [i];
+        enclosedVisited[i] = 1;
+        let rHead = 0;
+        while (rHead < region.length) {
+          const idx = region[rHead++];
+          const rx = idx % width, ry = (idx - rx) / width;
+          if (rx > 0 && !visited[idx - 1] && !enclosedVisited[idx - 1]) {
+            const nOff = (idx - 1) * 4;
+            if (pixels[nOff] >= threshold && pixels[nOff + 1] >= threshold && pixels[nOff + 2] >= threshold && pixels[nOff + 3] > 0) {
+              enclosedVisited[idx - 1] = 1; region.push(idx - 1);
+            }
+          }
+          if (rx < width - 1 && !visited[idx + 1] && !enclosedVisited[idx + 1]) {
+            const nOff = (idx + 1) * 4;
+            if (pixels[nOff] >= threshold && pixels[nOff + 1] >= threshold && pixels[nOff + 2] >= threshold && pixels[nOff + 3] > 0) {
+              enclosedVisited[idx + 1] = 1; region.push(idx + 1);
+            }
+          }
+          if (ry > 0 && !visited[idx - width] && !enclosedVisited[idx - width]) {
+            const nOff = (idx - width) * 4;
+            if (pixels[nOff] >= threshold && pixels[nOff + 1] >= threshold && pixels[nOff + 2] >= threshold && pixels[nOff + 3] > 0) {
+              enclosedVisited[idx - width] = 1; region.push(idx - width);
+            }
+          }
+          if (ry < height - 1 && !visited[idx + width] && !enclosedVisited[idx + width]) {
+            const nOff = (idx + width) * 4;
+            if (pixels[nOff] >= threshold && pixels[nOff + 1] >= threshold && pixels[nOff + 2] >= threshold && pixels[nOff + 3] > 0) {
+              enclosedVisited[idx + width] = 1; region.push(idx + width);
+            }
+          }
+        }
+
+        // Only clear tiny regions (letter counters); preserve anything larger (design fills)
+        if (region.length <= maxCounterArea) {
+          for (const idx of region) {
+            const rOff = idx * 4;
+            const whiteness = Math.min(pixels[rOff], pixels[rOff + 1], pixels[rOff + 2]);
+            pixels[rOff + 3] = whiteness >= 250 ? 0 : Math.round((255 - whiteness) * 3);
+          }
+        }
+      }
+    }
+  }
 
   return sharp(Buffer.from(pixels.buffer), {
     raw: { width, height, channels: 4 },
