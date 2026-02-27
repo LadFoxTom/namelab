@@ -75,6 +75,9 @@ export async function generateDesignBrief(
     colorPreference?: string;
     logoDescription?: string;
     businessDescription?: string;
+    personalitySliders?: { energy: number; tone: number; style: number; approach: number };
+    fontMood?: string;
+    colorPalette?: { name: string; primary?: string; accent?: string };
   }
 ): Promise<DesignBrief> {
   const description = userPreferences?.businessDescription || businessDescription;
@@ -133,6 +136,9 @@ ${userPreferences?.tone ? `Tone preference: ${userPreferences.tone}` : ''}
 ${userPreferences?.iconStyle ? `Icon style preference: ${userPreferences.iconStyle}` : ''}
 ${userPreferences?.colorPreference ? `Color preference: ${userPreferences.colorPreference}` : ''}
 ${userPreferences?.logoDescription ? `Logo concept/description: ${userPreferences.logoDescription}` : ''}
+${userPreferences?.personalitySliders ? `Personality guidance (1-5 scale): energy=${userPreferences.personalitySliders.energy}/5 (1=calm, 5=bold), tone=${userPreferences.personalitySliders.tone}/5 (1=playful, 5=serious), style=${userPreferences.personalitySliders.style}/5 (1=classic, 5=modern), approach=${userPreferences.personalitySliders.approach}/5 (1=minimal, 5=expressive). Use these to guide color saturation, type weight, font formality, logo detail, and color count.` : ''}
+${userPreferences?.fontMood ? `Font mood preference: ${userPreferences.fontMood} — use this as the typeGuidance.displayCategory` : ''}
+${userPreferences?.colorPalette?.primary ? `Suggested primary color: ${userPreferences.colorPalette.primary}${userPreferences.colorPalette.accent ? `, accent: ${userPreferences.colorPalette.accent}` : ''} — use these as suggestedPrimaryHex and suggestedAccentHex` : ''}
 
 Return a JSON object with this exact structure:
 {

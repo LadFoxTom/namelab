@@ -6,6 +6,7 @@ import { pregeneratePalette } from '@/lib/brand/palettePregen';
 import { downloadToBuffer } from '@/lib/brand/postprocess';
 import { uploadToR2 } from '@/lib/brand/storage';
 import { LogoStyle } from '@/lib/brand/prompts';
+import { getRecommendedStyles } from '@/lib/brand/styleRecommender';
 
 const LOGO_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark', 'pictorial', 'mascot', 'emblem', 'dynamic'];
 
@@ -62,9 +63,10 @@ export const generateBrandPreviews = inngest.createFunction(
     // Steps 2-9: Generate one style at a time (~15-30s each, fits in 60s limit)
     const allConcepts: GeneratedConcept[] = [];
 
+    // Use style recommender when user hasn't manually selected styles
     const selectedStyles: LogoStyle[] = preferences?.selectedStyles?.length
       ? (preferences.selectedStyles as LogoStyle[])
-      : LOGO_STYLES;
+      : getRecommendedStyles(designBrief);
 
     for (const style of selectedStyles) {
       const concepts = await step.run(`generate-${style}`, async () => {

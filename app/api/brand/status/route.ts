@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
           style: c.style,
           previewUrl: c.previewUrl,
           isSelected: c.isSelected,
+          score: c.score,
         }))
       : [],
   });

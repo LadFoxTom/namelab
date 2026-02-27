@@ -18,6 +18,7 @@ import { generateLetterhead } from '@/lib/brand/letterhead';
 import { generateEmailSignature } from '@/lib/brand/emailSignature';
 import { BrandSignals } from '@/lib/brand/signals';
 import { DesignBrief } from '@/lib/brand/strategist';
+import { generateVariations, LogoVariations } from '@/lib/brand/variationGenerator';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -148,6 +149,20 @@ export async function POST(req: NextRequest) {
       console.warn('Logo variant generation failed:', err.message);
     }
 
+    // 8d. Generate logo variation matrix (6 variations x 5 color versions)
+    let logoVariations: LogoVariations | undefined;
+    try {
+      const tagline = brief?.tagline || '';
+      logoVariations = await generateVariations(
+        logoPngTransparent,
+        brandName,
+        tagline,
+        { primary: finalPalette.primary, dark: finalPalette.dark }
+      );
+    } catch (err: any) {
+      console.warn('Logo variation generation failed:', err.message);
+    }
+
     // 9. Favicons
     const favicons = await generateFaviconPackage(logoPngBuffer, session.domainName);
 
@@ -197,6 +212,7 @@ export async function POST(req: NextRequest) {
       colorSystem: finalColorSystem,
       letterhead,
       emailSignature,
+      logoVariations,
     });
 
     // 12. Return ZIP as binary response
