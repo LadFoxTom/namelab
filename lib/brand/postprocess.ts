@@ -77,28 +77,72 @@ export async function vectorizeToSvg(imageBuffer: Buffer): Promise<string> {
  * Remove white/near-white background pixels from a PNG buffer,
  * making them transparent. Uses a threshold to handle anti-aliased edges.
  */
-export async function removeWhiteBackground(imageBuffer: Buffer, threshold = 245): Promise<Buffer> {
+export async function removeWhiteBackground(imageBuffer: Buffer, threshold = 240): Promise<Buffer> {
   const { data, info } = await sharp(imageBuffer)
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
 
+  const { width, height } = info;
   const pixels = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-  for (let i = 0; i < pixels.length; i += 4) {
-    const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
-    if (r >= threshold && g >= threshold && b >= threshold) {
-      // Fade alpha based on how white the pixel is (soft edge)
-      const whiteness = Math.min(r, g, b);
-      const alpha = whiteness >= 252 ? 0 : Math.round((255 - whiteness) * 3);
-      pixels[i + 3] = Math.min(pixels[i + 3], alpha);
+  const total = width * height;
+  const visited = new Uint8Array(total); // 0 = not visited
+
+  // Helper: is pixel at index i "white-ish"?
+  const isWhitish = (idx: number) => {
+    const off = idx * 4;
+    return pixels[off] >= threshold && pixels[off + 1] >= threshold && pixels[off + 2] >= threshold;
+  };
+
+  // Seed queue with all border pixels that are white
+  const queue: number[] = [];
+  for (let x = 0; x < width; x++) {
+    // top row
+    if (isWhitish(x)) { queue.push(x); visited[x] = 1; }
+    // bottom row
+    const b = (height - 1) * width + x;
+    if (isWhitish(b)) { queue.push(b); visited[b] = 1; }
+  }
+  for (let y = 1; y < height - 1; y++) {
+    // left col
+    const l = y * width;
+    if (isWhitish(l)) { queue.push(l); visited[l] = 1; }
+    // right col
+    const r = y * width + width - 1;
+    if (isWhitish(r)) { queue.push(r); visited[r] = 1; }
+  }
+
+  // BFS flood fill from border
+  let head = 0;
+  while (head < queue.length) {
+    const idx = queue[head++];
+    const x = idx % width, y = (idx - x) / width;
+    const neighbors = [];
+    if (x > 0) neighbors.push(idx - 1);
+    if (x < width - 1) neighbors.push(idx + 1);
+    if (y > 0) neighbors.push(idx - width);
+    if (y < height - 1) neighbors.push(idx + width);
+    for (const n of neighbors) {
+      if (!visited[n] && isWhitish(n)) {
+        visited[n] = 1;
+        queue.push(n);
+      }
+    }
+  }
+
+  // Only make visited (border-connected) white pixels transparent
+  for (let i = 0; i < total; i++) {
+    if (visited[i]) {
+      const off = i * 4;
+      const whiteness = Math.min(pixels[off], pixels[off + 1], pixels[off + 2]);
+      const alpha = whiteness >= 250 ? 0 : Math.round((255 - whiteness) * 3);
+      pixels[off + 3] = Math.min(pixels[off + 3], alpha);
     }
   }
 
   return sharp(Buffer.from(pixels.buffer), {
-    raw: { width: info.width, height: info.height, channels: 4 },
-  })
-    .png()
-    .toBuffer();
+    raw: { width, height, channels: 4 },
+  }).png().toBuffer();
 }
 
 function escXml(s: string): string {
