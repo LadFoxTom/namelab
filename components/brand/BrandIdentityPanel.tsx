@@ -272,6 +272,13 @@ export function BrandIdentityPanel({
         concepts={concepts}
         selectedId={selectedConceptId}
         onSelect={setSelectedConceptId}
+        onConceptRefined={(conceptId, newPreviewUrl) => {
+          setConcepts((prev: any[]) =>
+            prev.map((c: any) =>
+              c.id === conceptId ? { ...c, previewUrl: newPreviewUrl } : c
+            )
+          );
+        }}
       />
 
       <div className="mt-6 space-y-3">

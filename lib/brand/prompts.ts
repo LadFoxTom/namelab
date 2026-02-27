@@ -1,6 +1,9 @@
+import OpenAI from 'openai';
 import { BrandSignals } from './signals';
 import { GeneratedPalette } from './palettePregen';
 import { DesignBrief } from './strategist';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export type LogoStyle = 'wordmark' | 'icon_wordmark' | 'monogram' | 'abstract_mark' | 'pictorial' | 'mascot' | 'emblem' | 'dynamic';
 
@@ -51,6 +54,41 @@ export function buildLogoPrompt(style: LogoStyle, signals: BrandSignals): string
     light: '#F8FAFC',
   };
   return buildPromptSet(style, signals, fallbackPalette).prompt;
+}
+
+/**
+ * Use GPT-4o-mini to revise an existing image-generation prompt based on user feedback.
+ * Only the requested change is applied; all other details (style, technical directives) are preserved.
+ */
+export async function revisePromptWithFeedback(
+  originalPrompt: string,
+  feedback: string
+): Promise<string> {
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    temperature: 0.3,
+    messages: [
+      {
+        role: 'system',
+        content: `You are a prompt editor for an AI image generator (Flux).
+You will receive the original image generation prompt and a user change request.
+Return ONLY the revised prompt — no explanation, no markdown, no quotes.
+Rules:
+- Make ONLY the change the user requested.
+- Preserve the overall structure, style descriptors, and technical directives (flat 2D vector, white background, etc.) unless the user explicitly asks to change them.
+- Keep the prompt roughly the same length.
+- Do not add new concepts the user did not ask for.`,
+      },
+      {
+        role: 'user',
+        content: `Original prompt:\n${originalPrompt}\n\nUser feedback:\n${feedback}`,
+      },
+    ],
+  });
+
+  const revised = response.choices[0].message.content?.trim();
+  if (!revised) throw new Error('GPT returned empty revised prompt');
+  return revised;
 }
 
 // ── Strategic context helpers ───────────────────────────────────────────────

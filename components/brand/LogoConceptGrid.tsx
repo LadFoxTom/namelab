@@ -13,6 +13,7 @@ interface LogoConceptGridProps {
   concepts: Concept[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onConceptRefined?: (conceptId: string, newPreviewUrl: string) => void;
 }
 
 const STYLE_LABELS: Record<string, string> = {
@@ -26,8 +27,35 @@ const STYLE_LABELS: Record<string, string> = {
   dynamic: 'Dynamic',
 };
 
-export function LogoConceptGrid({ concepts, selectedId, onSelect }: LogoConceptGridProps) {
+export function LogoConceptGrid({ concepts, selectedId, onSelect, onConceptRefined }: LogoConceptGridProps) {
   const [lightboxConcept, setLightboxConcept] = useState<Concept | null>(null);
+  const [refiningId, setRefiningId] = useState<string | null>(null);
+  const [feedbackText, setFeedbackText] = useState<Record<string, string>>({});
+  const [activeFeedbackId, setActiveFeedbackId] = useState<string | null>(null);
+  const [refineError, setRefineError] = useState<string | null>(null);
+
+  const handleRefine = useCallback(async (conceptId: string) => {
+    const text = feedbackText[conceptId]?.trim();
+    if (!text || !onConceptRefined) return;
+    setRefiningId(conceptId);
+    setRefineError(null);
+    try {
+      const res = await fetch('/api/brand/refine-concept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conceptId, feedback: text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Refinement failed');
+      onConceptRefined(conceptId, data.previewUrl);
+      setFeedbackText((prev) => ({ ...prev, [conceptId]: '' }));
+      setActiveFeedbackId(null);
+    } catch (err: any) {
+      setRefineError(err.message || 'Refinement failed');
+    } finally {
+      setRefiningId(null);
+    }
+  }, [feedbackText, onConceptRefined]);
 
   const closeLightbox = useCallback(() => setLightboxConcept(null), []);
 
@@ -44,10 +72,10 @@ export function LogoConceptGrid({ concepts, selectedId, onSelect }: LogoConceptG
     <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {concepts.map((concept) => (
+          <div key={concept.id}>
           <button
-            key={concept.id}
             onClick={() => onSelect(concept.id)}
-            className={`relative group rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+            className={`relative group rounded-xl overflow-hidden border-2 transition-all duration-200 w-full ${
               selectedId === concept.id
                 ? 'border-purple-500 ring-2 ring-purple-200 scale-[1.02]'
                 : 'border-gray-200 hover:border-purple-300'
@@ -86,7 +114,65 @@ export function LogoConceptGrid({ concepts, selectedId, onSelect }: LogoConceptG
                 </svg>
               </div>
             )}
+            {/* Refine button */}
+            {onConceptRefined && refiningId !== concept.id && (
+              <div
+                role="button"
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveFeedbackId(activeFeedbackId === concept.id ? null : concept.id);
+                  setRefineError(null);
+                }}
+                className="absolute top-2 right-2 w-7 h-7 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:bg-black/70"
+                style={selectedId === concept.id ? { right: '2.25rem' } : undefined}
+              >
+                <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </div>
+            )}
+            {/* Loading overlay */}
+            {refiningId === concept.id && (
+              <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 rounded-xl">
+                <div className="flex flex-col items-center gap-2">
+                  <svg className="animate-spin h-6 w-6 text-purple-500" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="text-xs text-purple-600 font-medium">Refining...</span>
+                </div>
+              </div>
+            )}
           </button>
+          {/* Feedback input for this concept */}
+          {activeFeedbackId === concept.id && onConceptRefined && (
+            <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={feedbackText[concept.id] || ''}
+                  onChange={(e) => setFeedbackText((prev) => ({ ...prev, [concept.id]: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleRefine(concept.id); }}
+                  placeholder="e.g. make the icon blue"
+                  className="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-300"
+                  maxLength={500}
+                  disabled={refiningId === concept.id}
+                />
+                <button
+                  onClick={() => handleRefine(concept.id)}
+                  disabled={!feedbackText[concept.id]?.trim() || refiningId === concept.id}
+                  className="px-2.5 py-1.5 bg-purple-500 text-white text-xs rounded-lg hover:bg-purple-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Refine
+                </button>
+              </div>
+              {refineError && refiningId === null && (
+                <p className="text-[10px] text-red-500 mt-1">{refineError}</p>
+              )}
+            </div>
+          )}
+          </div>
         ))}
       </div>
 
