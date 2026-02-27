@@ -277,6 +277,93 @@ export async function generateNameImages(
   return { nameWhiteBg, nameTransparent: textBuffer };
 }
 
+/**
+ * Set all non-transparent pixels to white, preserving alpha.
+ * For reversed/knockout logos on dark backgrounds.
+ */
+export async function colorizeToWhite(transparentPng: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(transparentPng)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const { width, height } = info;
+  const pixels = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  for (let i = 0; i < width * height; i++) {
+    const off = i * 4;
+    if (pixels[off + 3] > 0) {
+      pixels[off] = 255;
+      pixels[off + 1] = 255;
+      pixels[off + 2] = 255;
+    }
+  }
+
+  return sharp(Buffer.from(pixels.buffer), {
+    raw: { width, height, channels: 4 },
+  }).png().toBuffer();
+}
+
+/**
+ * Set all non-transparent pixels to black, preserving alpha.
+ * For B&W printing, fax, one-color applications.
+ */
+export async function colorizeToBlack(transparentPng: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(transparentPng)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const { width, height } = info;
+  const pixels = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  for (let i = 0; i < width * height; i++) {
+    const off = i * 4;
+    if (pixels[off + 3] > 0) {
+      pixels[off] = 0;
+      pixels[off + 1] = 0;
+      pixels[off + 2] = 0;
+    }
+  }
+
+  return sharp(Buffer.from(pixels.buffer), {
+    raw: { width, height, channels: 4 },
+  }).png().toBuffer();
+}
+
+/** Convert a PNG to grayscale. */
+export async function toGrayscale(png: Buffer): Promise<Buffer> {
+  return sharp(png).grayscale().png().toBuffer();
+}
+
+/**
+ * Composite a transparent logo centered on a solid-color background.
+ * For "logo on dark bg" and "logo on brand-color bg" previews.
+ */
+export async function compositeOnBackground(
+  transparentPng: Buffer,
+  bgColor: string,
+  size = 2000
+): Promise<Buffer> {
+  const hex = bgColor.replace('#', '');
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+
+  const logoSize = Math.round(size * 0.6);
+  const resized = await sharp(transparentPng)
+    .resize(logoSize, logoSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+
+  const offset = Math.round((size - logoSize) / 2);
+
+  return sharp({
+    create: { width: size, height: size, channels: 4, background: { r, g, b, alpha: 255 } }
+  })
+    .composite([{ input: resized, top: offset, left: offset }])
+    .png()
+    .toBuffer();
+}
+
 export async function svgToHighResPng(svgString: string, size = 2000): Promise<Buffer> {
   // Strip white background rects from SVG so the PNG has true transparency.
   // Vectorizer.ai and other tools often add a full-size white rect as background.

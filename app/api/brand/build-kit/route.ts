@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import sharp from 'sharp';
 import { prisma } from '@/lib/prisma';
-import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng, compositeLogoWithText, compositeLogoWithTextTransparent, generateNameImages } from '@/lib/brand/postprocess';
+import { downloadToBuffer, vectorizeToSvg, removeWhiteBackground, ensurePng, compositeLogoWithText, compositeLogoWithTextTransparent, generateNameImages, colorizeToWhite, colorizeToBlack, toGrayscale, compositeOnBackground } from '@/lib/brand/postprocess';
 import { downloadFromR2 } from '@/lib/brand/storage';
 import { extractBrandPalette } from '@/lib/brand/palette';
 import { getFontPairing } from '@/lib/brand/typography';
@@ -13,6 +14,8 @@ import { generateFaviconPackage } from '@/lib/brand/favicons';
 import { generateBrandPdf } from '@/lib/brand/brandPdf';
 import { generateBusinessCards } from '@/lib/brand/businessCards';
 import { assembleZip } from '@/lib/brand/packaging';
+import { generateLetterhead } from '@/lib/brand/letterhead';
+import { generateEmailSignature } from '@/lib/brand/emailSignature';
 import { BrandSignals } from '@/lib/brand/signals';
 import { DesignBrief } from '@/lib/brand/strategist';
 
@@ -112,17 +115,54 @@ export async function POST(req: NextRequest) {
       console.warn('Logo-with-text/name composites failed:', err.message);
     }
 
+    // 8c. Generate logo color variants
+    let logoWhitePng: Buffer | undefined;
+    let logoBlackPng: Buffer | undefined;
+    let logoGrayscalePng: Buffer | undefined;
+    let logoOnDarkBgPng: Buffer | undefined;
+    let logoOnBrandBgPng: Buffer | undefined;
+    let logoHighRes4000: Buffer | undefined;
+    let logoWithTextHighRes: Buffer | undefined;
+    try {
+      const [white, black, gray, onDark, onBrand, hiRes] = await Promise.all([
+        colorizeToWhite(logoPngTransparent),
+        colorizeToBlack(logoPngTransparent),
+        toGrayscale(logoPngBuffer),
+        compositeOnBackground(logoPngTransparent, finalPalette.dark),
+        compositeOnBackground(logoPngTransparent, finalPalette.primary),
+        sharp(logoPngTransparent).resize(4000, 4000, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer(),
+      ]);
+      logoWhitePng = white;
+      logoBlackPng = black;
+      logoGrayscalePng = gray;
+      logoOnDarkBgPng = onDark;
+      logoOnBrandBgPng = onBrand;
+      logoHighRes4000 = hiRes;
+      // Also generate high-res logo-with-name if the composite exists
+      if (logoWithTextTransparentPng) {
+        logoWithTextHighRes = await sharp(logoWithTextTransparentPng)
+          .resize(4000, 4000, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+          .png().toBuffer();
+      }
+    } catch (err: any) {
+      console.warn('Logo variant generation failed:', err.message);
+    }
+
     // 9. Favicons
     const favicons = await generateFaviconPackage(logoPngBuffer, session.domainName);
 
-    // 10-12. Social kit, business cards, PDF (for BRAND_KIT and BRAND_KIT_PRO)
+    // 10-12. Social kit, business cards, PDF, print collateral (for BRAND_KIT and BRAND_KIT_PRO)
     let socialKit = undefined;
     let brandPdf = undefined;
     let businessCards = undefined;
+    let letterhead = undefined;
+    let emailSignature = undefined;
     if (tier !== 'LOGO_ONLY') {
       const socialStrategy = brief ? await generateSocialStrategy(brief, signals) : undefined;
       socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, session.domainName, socialStrategy, conceptSalt);
       businessCards = await generateBusinessCards(logoPngBuffer, finalPalette, session.domainName, brief);
+      letterhead = await generateLetterhead(logoPngBuffer, finalPalette, session.domainName, brief);
+      emailSignature = generateEmailSignature(finalPalette, session.domainName, brief);
       brandPdf = await generateBrandPdf(
         session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts,
         brief, typeSystem, finalColorSystem, logoPngTransparent
@@ -146,6 +186,17 @@ export async function POST(req: NextRequest) {
       brandPdf,
       businessCards,
       tier: tier as any,
+      // Phase 1 additions
+      logoWhitePng,
+      logoBlackPng,
+      logoGrayscalePng,
+      logoOnDarkBgPng,
+      logoOnBrandBgPng,
+      logoHighRes4000,
+      logoWithTextHighRes,
+      colorSystem: finalColorSystem,
+      letterhead,
+      emailSignature,
     });
 
     // 12. Return ZIP as binary response

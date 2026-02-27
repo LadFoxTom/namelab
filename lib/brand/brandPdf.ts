@@ -380,14 +380,29 @@ export async function generateBrandPdf(
     template,
   };
 
+  let pageNum = 1;
   drawCoverPage(page1, ctx, brief);
   drawTocPage(ctx, brief);
-  drawBrandOverviewPage(ctx, signals, brief);
-  drawLogoSystemPage(ctx);
-  drawColorPalettePage(ctx, palette, colorSystem);
-  drawTypographyPage(ctx, useFonts, signals, brief, typeSystem);
-  drawApplicationsPage(ctx, palette, brief);
-  drawDosDontsPage(ctx, palette, brief);
+  drawBrandOverviewPage(ctx, signals, brief, pageNum++);
+  if (brief) {
+    drawBrandStoryPage(ctx, brief, pageNum++);
+    drawBrandVoicePage(ctx, brief, signals, pageNum++);
+  }
+  drawLogoSystemPage(ctx, pageNum++);
+  drawColorPalettePage(ctx, palette, colorSystem, pageNum++);
+  if (colorSystem && brief) {
+    drawColorDeepDivePage(ctx, colorSystem, palette, pageNum++);
+  }
+  drawTypographyPage(ctx, useFonts, signals, brief, typeSystem, pageNum++);
+  if (brief) {
+    drawImageryDirectionPage(ctx, brief, pageNum++);
+  }
+  drawApplicationsPage(ctx, palette, brief, pageNum++);
+  if (brief) {
+    drawDigitalApplicationsPage(ctx, palette, brief, pageNum++);
+    drawExtendedApplicationsPage(ctx, palette, brief, pageNum++);
+  }
+  drawDosDontsPage(ctx, palette, brief, pageNum++);
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
@@ -505,14 +520,40 @@ function drawTocPage(ctx: PdfContext, brief?: DesignBrief) {
 
   page.drawText('Contents', { x: 48, y: height - 80, size: 28, font: ctx.brandDisplayFont, color: c(ctx.pageFg) });
 
-  const sections = [
+  const baseSections = [
     { num: '01', title: 'Brand Overview', desc: 'Mission, pillars, and personality' },
-    { num: '02', title: 'Logo System', desc: 'Usage, clear space, and restrictions' },
-    { num: '03', title: 'Color Palette', desc: 'Primary, secondary, and functional colors' },
-    { num: '04', title: 'Typography', desc: 'Type system, scale, and pairing' },
-    { num: '05', title: 'Applications', desc: 'Business card and letterhead' },
-    { num: '06', title: "Do's & Don'ts", desc: 'Usage guidelines' },
   ];
+  if (brief) {
+    baseSections.push(
+      { num: '02', title: 'Brand Story', desc: 'Tagline, tensions, pillars, and positioning' },
+      { num: '03', title: 'Brand Voice', desc: 'Personality, tone, and messaging guidance' },
+    );
+  }
+  const logoNum = brief ? '04' : '02';
+  const colorNum = brief ? '05' : '03';
+  baseSections.push(
+    { num: logoNum, title: 'Logo System', desc: 'Usage, clear space, and restrictions' },
+    { num: colorNum, title: 'Color Palette', desc: 'Primary, secondary, and functional colors' },
+  );
+  if (brief) {
+    baseSections.push({ num: '06', title: 'Color Deep-Dive', desc: 'Full system, accessibility, and dark theme' });
+  }
+  const typoNum = brief ? '07' : '04';
+  baseSections.push({ num: typoNum, title: 'Typography', desc: 'Type system, scale, and pairing' });
+  if (brief) {
+    baseSections.push({ num: '08', title: 'Imagery Direction', desc: 'Photography mood and treatment guidance' });
+  }
+  const appNum = brief ? '09' : '05';
+  baseSections.push({ num: appNum, title: 'Applications', desc: 'Business card and letterhead' });
+  if (brief) {
+    baseSections.push(
+      { num: '10', title: 'Digital Applications', desc: 'Website mockups, buttons, and forms' },
+      { num: '11', title: 'Extended Applications', desc: 'Letterhead, email signature, and social media' },
+    );
+  }
+  const dosNum = brief ? '12' : '06';
+  baseSections.push({ num: dosNum, title: "Do's & Don'ts", desc: 'Usage guidelines' });
+  const sections = baseSections;
 
   let y = height - 140;
   sections.forEach((s) => {
@@ -548,10 +589,10 @@ function drawTocPage(ctx: PdfContext, brief?: DesignBrief) {
 
 // ── Page 3: Brand Overview ──────────────────────────────────────────────────
 
-function drawBrandOverviewPage(ctx: PdfContext, signals: BrandSignals, brief?: DesignBrief) {
+function drawBrandOverviewPage(ctx: PdfContext, signals: BrandSignals, brief?: DesignBrief, pageNum = 1) {
   const page = ctx.pdfDoc.addPage(PageSizes.A4);
   const { width, height } = ctx;
-  drawPageHeader(page, ctx, 'Brand Overview', 1);
+  drawPageHeader(page, ctx, 'Brand Overview', pageNum);
 
   let y = height - 90;
   const maxTextW = width - 96;
@@ -649,10 +690,10 @@ function drawBrandOverviewPage(ctx: PdfContext, signals: BrandSignals, brief?: D
 
 // ── Page 4: Logo System ─────────────────────────────────────────────────────
 
-function drawLogoSystemPage(ctx: PdfContext) {
+function drawLogoSystemPage(ctx: PdfContext, pageNum = 2) {
   const page = ctx.pdfDoc.addPage(PageSizes.A4);
   const { width, height } = ctx;
-  drawPageHeader(page, ctx, 'Logo System', 2);
+  drawPageHeader(page, ctx, 'Logo System', pageNum);
 
   let y = height - 90;
   const contentW = width - 96;
@@ -756,10 +797,10 @@ function drawLogoSystemPage(ctx: PdfContext) {
 
 // ── Page 5: Color Palette ───────────────────────────────────────────────────
 
-function drawColorPalettePage(ctx: PdfContext, palette: BrandPalette, colorSystem?: ColorSystem) {
+function drawColorPalettePage(ctx: PdfContext, palette: BrandPalette, colorSystem?: ColorSystem, pageNum = 3) {
   const page = ctx.pdfDoc.addPage(PageSizes.A4);
   const { width, height } = ctx;
-  drawPageHeader(page, ctx, 'Color Palette', 3);
+  drawPageHeader(page, ctx, 'Color Palette', pageNum);
 
   let y = height - 90;
   const contentW = width - 96;
@@ -896,10 +937,10 @@ function drawColorPalettePage(ctx: PdfContext, palette: BrandPalette, colorSyste
 
 // ── Page 6: Typography ──────────────────────────────────────────────────────
 
-function drawTypographyPage(ctx: PdfContext, fonts: FontPairing, signals: BrandSignals, brief?: DesignBrief, typeSystem?: TypeSystem) {
+function drawTypographyPage(ctx: PdfContext, fonts: FontPairing, signals: BrandSignals, brief?: DesignBrief, typeSystem?: TypeSystem, pageNum = 4) {
   const page = ctx.pdfDoc.addPage(PageSizes.A4);
   const { width, height } = ctx;
-  drawPageHeader(page, ctx, 'Typography', 4);
+  drawPageHeader(page, ctx, 'Typography', pageNum);
 
   let y = height - 90;
   const maxTextW = width - 96;
@@ -999,10 +1040,10 @@ function drawTypographyPage(ctx: PdfContext, fonts: FontPairing, signals: BrandS
 
 // ── Page 7: Applications ────────────────────────────────────────────────────
 
-function drawApplicationsPage(ctx: PdfContext, palette: BrandPalette, brief?: DesignBrief) {
+function drawApplicationsPage(ctx: PdfContext, palette: BrandPalette, brief?: DesignBrief, pageNum = 5) {
   const page = ctx.pdfDoc.addPage(PageSizes.A4);
   const { width, height } = ctx;
-  drawPageHeader(page, ctx, 'Applications', 5);
+  drawPageHeader(page, ctx, 'Applications', pageNum);
 
   let y = height - 90;
   const contentW = width - 96;
@@ -1107,12 +1148,601 @@ function drawApplicationsPage(ctx: PdfContext, palette: BrandPalette, brief?: De
   drawPageFooter(page, ctx, 'Applications');
 }
 
-// ── Page 8: Do's & Don'ts ───────────────────────────────────────────────────
+// ── Brand Story Page ─────────────────────────────────────────────────────────
 
-function drawDosDontsPage(ctx: PdfContext, palette: BrandPalette, brief?: DesignBrief) {
+function drawBrandStoryPage(ctx: PdfContext, brief: DesignBrief, pageNum = 2) {
   const page = ctx.pdfDoc.addPage(PageSizes.A4);
   const { width, height } = ctx;
-  drawPageHeader(page, ctx, "Do's & Don'ts", 6);
+  drawPageHeader(page, ctx, 'Brand Story', pageNum);
+
+  let y = height - 90;
+  const maxTextW = width - 96;
+
+  // Hero quote: brand name + tagline
+  drawSectionLabel(page, ctx, 'Brand Positioning', 48, y);
+  y -= 28;
+  drawTextSafe(page, ctx.brandTitle, { x: 48, y, size: 28, font: ctx.brandDisplayFont, color: c(ctx.visPrimary), maxWidth: maxTextW });
+  y -= 36;
+  if (brief.tagline) {
+    const tagLines = wrapText(`"${brief.tagline}"`, ctx.fontLight, 14, maxTextW);
+    tagLines.slice(0, 2).forEach((line) => {
+      page.drawText(line, { x: 48, y, size: 14, font: ctx.fontLight, color: c(ctx.pageFg), opacity: 0.7 });
+      y -= 20;
+    });
+  }
+  y -= 12;
+
+  // Tension pair as pull-quote
+  if (brief.tensionPair) {
+    const tensionH = 50;
+    page.drawRectangle({ x: 48, y: y - tensionH, width: maxTextW, height: tensionH, color: c(ctx.visPrimary), opacity: 0.08 });
+    page.drawRectangle({ x: 48, y: y - tensionH, width: 4, height: tensionH, color: c(ctx.accent) });
+    drawTextSafe(page, `"${brief.tensionPair}"`, { x: 68, y: y - 20, size: 13, font: ctx.brandDisplayFont, color: c(ctx.pageFg), maxWidth: maxTextW - 40 });
+    page.drawText('Brand Tension', { x: 68, y: y - 38, size: 8, font: ctx.fontRegular, color: c(ctx.pageFg), opacity: 0.5 });
+    y -= tensionH + 20;
+  }
+
+  // Pillars as 3 cards
+  if (brief.brandPillars && brief.brandPillars.length > 0 && y > 300) {
+    drawSectionLabel(page, ctx, 'Brand Pillars', 48, y);
+    y -= 20;
+    const pillarCount = Math.min(brief.brandPillars.length, 3);
+    const pillarW = (maxTextW - (pillarCount - 1) * 12) / pillarCount;
+    const pillarH = 90;
+    brief.brandPillars.slice(0, pillarCount).forEach((pillar, i) => {
+      const px = 48 + i * (pillarW + 12);
+      page.drawRectangle({ x: px, y: y - pillarH, width: pillarW, height: pillarH, color: c(ctx.lightGray) });
+      page.drawRectangle({ x: px, y: y, width: pillarW, height: 3, color: c(ctx.accent) });
+      drawTextSafe(page, pillar.name, { x: px + 12, y: y - 18, size: 11, font: ctx.fontBold, color: c(ctx.dark), maxWidth: pillarW - 24 });
+      const descLines = wrapText(pillar.description, ctx.fontRegular, 8, pillarW - 24);
+      descLines.slice(0, 4).forEach((line, li) => {
+        page.drawText(line, { x: px + 12, y: y - 36 - (li * 12), size: 8, font: ctx.fontRegular, color: rgb(0.4, 0.4, 0.4) });
+      });
+    });
+    y -= pillarH + 24;
+  }
+
+  // Target audience
+  if (brief.targetAudienceSummary && y > 180) {
+    drawSectionLabel(page, ctx, 'Target Audience', 48, y);
+    y -= 18;
+    const audienceLines = wrapText(brief.targetAudienceSummary, ctx.fontRegular, 10, maxTextW);
+    audienceLines.slice(0, 5).forEach((line) => {
+      if (y < 60) return;
+      page.drawText(line, { x: 48, y, size: 10, font: ctx.fontRegular, color: rgb(0.3, 0.3, 0.3) });
+      y -= 15;
+    });
+    y -= 10;
+  }
+
+  // Competitive differentiation
+  if (brief.competitiveDifferentiation && y > 120) {
+    drawSectionLabel(page, ctx, 'Differentiation', 48, y);
+    y -= 18;
+    const diffLines = wrapText(brief.competitiveDifferentiation, ctx.fontRegular, 9, maxTextW);
+    diffLines.slice(0, 4).forEach((line) => {
+      if (y < 60) return;
+      page.drawText(line, { x: 48, y, size: 9, font: ctx.fontRegular, color: rgb(0.35, 0.35, 0.35) });
+      y -= 13;
+    });
+  }
+
+  drawPageFooter(page, ctx, 'Brand Story');
+}
+
+// ── Brand Voice Page ─────────────────────────────────────────────────────────
+
+function drawBrandVoicePage(ctx: PdfContext, brief: DesignBrief, signals: BrandSignals, pageNum = 3) {
+  const page = ctx.pdfDoc.addPage(PageSizes.A4);
+  const { width, height } = ctx;
+  drawPageHeader(page, ctx, 'Brand Voice', pageNum);
+
+  let y = height - 90;
+  const maxTextW = width - 96;
+
+  // Personality traits as trait ↔ counterbalance grid
+  if (brief.personalityTraits && brief.personalityTraits.length > 0) {
+    drawSectionLabel(page, ctx, 'Personality Spectrum', 48, y);
+    y -= 24;
+
+    // Table header
+    const colTrait = 48;
+    const colBar = 210;
+    const colCounter = 340;
+    page.drawRectangle({ x: colTrait, y: y - 4, width: maxTextW, height: 18, color: c(ctx.lightGray) });
+    page.drawText('TRAIT', { x: colTrait + 8, y: y, size: 7, font: ctx.fontBold, color: c(ctx.pageFg), opacity: 0.6 });
+    page.drawText('COUNTERBALANCE', { x: colCounter + 8, y: y, size: 7, font: ctx.fontBold, color: c(ctx.pageFg), opacity: 0.6 });
+    y -= 22;
+
+    brief.personalityTraits.slice(0, 5).forEach((t) => {
+      if (y < 100) return;
+      // Trait side
+      drawTextSafe(page, t.trait, { x: colTrait + 8, y, size: 10, font: ctx.fontBold, color: c(ctx.visPrimary), maxWidth: 150 });
+      // Visual bar between
+      page.drawRectangle({ x: colBar, y: y + 2, width: 120, height: 8, color: c(ctx.lightGray) });
+      page.drawRectangle({ x: colBar, y: y + 2, width: 70, height: 8, color: c(ctx.accent), opacity: 0.5 });
+      // Counterbalance side
+      drawTextSafe(page, t.counterbalance, { x: colCounter + 8, y, size: 10, font: ctx.fontRegular, color: rgb(0.4, 0.4, 0.4), maxWidth: 150 });
+      page.drawRectangle({ x: colTrait, y: y - 10, width: maxTextW, height: 0.3, color: c(ctx.pageFg), opacity: 0.08 });
+      y -= 28;
+    });
+    y -= 12;
+  }
+
+  // Tone descriptors
+  if (y > 360) {
+    drawSectionLabel(page, ctx, 'Tone of Voice', 48, y);
+    y -= 20;
+    const toneDesc = brief.tensionPair
+      ? `The brand voice lives in the tension of "${brief.tensionPair}". Communications should feel ${signals.tone}, anchored in ${brief.aestheticDirection.toLowerCase()} principles.`
+      : `The brand voice is ${signals.tone}, with undertones of ${signals.subTone || 'confidence'}.`;
+    const toneLines = wrapText(toneDesc, ctx.fontRegular, 10, maxTextW);
+    toneLines.slice(0, 3).forEach((line) => {
+      page.drawText(line, { x: 48, y, size: 10, font: ctx.fontRegular, color: rgb(0.3, 0.3, 0.3) });
+      y -= 15;
+    });
+    y -= 14;
+  }
+
+  // "We say / We don't say" table derived from tension + aesthetic
+  if (y > 220) {
+    drawSectionLabel(page, ctx, 'Messaging Guidance', 48, y);
+    y -= 20;
+
+    const halfW = (maxTextW - 16) / 2;
+
+    // "We say" header
+    page.drawRectangle({ x: 48, y: y - 4, width: halfW, height: 20, color: rgb(0.13, 0.77, 0.37), opacity: 0.12 });
+    page.drawText('WE SAY', { x: 56, y: y, size: 8, font: ctx.fontBold, color: rgb(0.13, 0.65, 0.30) });
+
+    // "We don't say" header
+    page.drawRectangle({ x: 48 + halfW + 16, y: y - 4, width: halfW, height: 20, color: rgb(0.94, 0.27, 0.27), opacity: 0.12 });
+    page.drawText("WE DON'T SAY", { x: 56 + halfW + 16, y: y, size: 8, font: ctx.fontBold, color: rgb(0.85, 0.20, 0.20) });
+    y -= 28;
+
+    // Derive messaging from tension pair and traits
+    const tension = brief.tensionPair || '';
+    const parts = tension.split(/\bbut\b/i).map(s => s.trim());
+    const quality1 = parts[0] || signals.tone;
+    const quality2 = parts[1] || signals.subTone || 'approachable';
+
+    const weSay = [
+      `${quality1.charAt(0).toUpperCase() + quality1.slice(1)} and clear`,
+      `Confident yet ${quality2.toLowerCase()}`,
+      'Direct with purpose',
+      'Human and authentic',
+    ];
+    const weDontSay = [
+      'Overly casual or sloppy',
+      'Cold or corporate jargon',
+      'Vague or wishy-washy',
+      'Hyperbolic or salesy',
+    ];
+
+    weSay.forEach((item, i) => {
+      if (y < 80) return;
+      page.drawRectangle({ x: 48, y: y - 3, width: 6, height: 6, color: rgb(0.13, 0.77, 0.37) });
+      page.drawText(item, { x: 62, y, size: 9, font: ctx.fontRegular, color: rgb(0.3, 0.3, 0.3) });
+      if (weDontSay[i]) {
+        page.drawRectangle({ x: 48 + halfW + 16, y: y - 3, width: 6, height: 6, color: rgb(0.94, 0.27, 0.27) });
+        page.drawText(weDontSay[i], { x: 62 + halfW + 16, y, size: 9, font: ctx.fontRegular, color: rgb(0.3, 0.3, 0.3) });
+      }
+      y -= 18;
+    });
+  }
+
+  drawPageFooter(page, ctx, 'Brand Voice');
+}
+
+// ── Imagery Direction Page ───────────────────────────────────────────────────
+
+function drawImageryDirectionPage(ctx: PdfContext, brief: DesignBrief, pageNum = 8) {
+  const page = ctx.pdfDoc.addPage(PageSizes.A4);
+  const { width, height } = ctx;
+  drawPageHeader(page, ctx, 'Imagery Direction', pageNum);
+
+  let y = height - 90;
+  const maxTextW = width - 96;
+
+  // Photography mood
+  drawSectionLabel(page, ctx, 'Photography Mood', 48, y);
+  y -= 22;
+
+  const aesthetic = brief.aestheticDirection.toLowerCase();
+  const isWarm = /warm|organic|soft|gentle|natural/.test(aesthetic);
+  const isCool = /cool|technical|minimal|swiss|brutal/.test(aesthetic);
+  const mood = isWarm ? 'Warm, natural lighting with soft shadows and authentic moments'
+    : isCool ? 'Clean, controlled lighting with precise composition and sharp focus'
+    : 'Balanced lighting with intentional composition and brand-aligned subjects';
+
+  const moodLines = wrapText(mood, ctx.fontRegular, 11, maxTextW);
+  moodLines.forEach((line) => {
+    page.drawText(line, { x: 48, y, size: 11, font: ctx.fontRegular, color: c(ctx.pageFg) });
+    y -= 16;
+  });
+  y -= 16;
+
+  // Subject matter guidance
+  drawSectionLabel(page, ctx, 'Subject Matter', 48, y);
+  y -= 20;
+
+  const sector = brief.sectorClassification.toLowerCase();
+  const subjects = [
+    { label: 'People', desc: sector.includes('tech') ? 'Diverse teams collaborating, candid work moments' : sector.includes('food') ? 'Artisans at work, community gatherings' : 'Real people in authentic settings' },
+    { label: 'Environment', desc: sector.includes('tech') ? 'Clean workspaces, modern architecture' : sector.includes('nature') || sector.includes('wellness') ? 'Natural landscapes, organic textures' : 'Brand-relevant spaces and contexts' },
+    { label: 'Product', desc: 'Hero shots with consistent styling and clear brand presence' },
+    { label: 'Abstract', desc: 'Textures and patterns that reinforce the brand aesthetic' },
+  ];
+
+  const cardW = (maxTextW - 12) / 2;
+  const cardH = 70;
+  subjects.forEach((subj, i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const sx = 48 + col * (cardW + 12);
+    const sy = y - row * (cardH + 12);
+    if (sy - cardH < 60) return;
+    page.drawRectangle({ x: sx, y: sy - cardH, width: cardW, height: cardH, color: c(ctx.lightGray) });
+    page.drawRectangle({ x: sx, y: sy, width: cardW, height: 3, color: c(ctx.accent) });
+    drawTextSafe(page, subj.label, { x: sx + 12, y: sy - 18, size: 10, font: ctx.fontBold, color: c(ctx.dark), maxWidth: cardW - 24 });
+    const descLines = wrapText(subj.desc, ctx.fontRegular, 8, cardW - 24);
+    descLines.slice(0, 3).forEach((line, li) => {
+      page.drawText(line, { x: sx + 12, y: sy - 34 - (li * 11), size: 8, font: ctx.fontRegular, color: rgb(0.4, 0.4, 0.4) });
+    });
+  });
+  y -= 2 * (cardH + 12) + 16;
+
+  // Treatment guidance
+  if (y > 200) {
+    drawSectionLabel(page, ctx, 'Treatment & Processing', 48, y);
+    y -= 20;
+
+    const treatments = [
+      { label: 'Temperature', value: isWarm ? 'Warm tones, amber highlights' : isCool ? 'Cool tones, blue-tinted shadows' : 'Neutral, true-to-life color' },
+      { label: 'Contrast', value: /bold|brutal|technical/.test(aesthetic) ? 'High contrast, deep blacks' : /soft|gentle|organic/.test(aesthetic) ? 'Low contrast, lifted blacks' : 'Medium contrast, balanced' },
+      { label: 'Saturation', value: /vibrant|bold/.test(aesthetic) ? 'Rich, saturated colors' : /muted|minimal|editorial/.test(aesthetic) ? 'Desaturated, muted palette' : 'Natural saturation' },
+      { label: 'Composition', value: /minimal|swiss/.test(aesthetic) ? 'Grid-aligned, generous whitespace' : /organic|natural/.test(aesthetic) ? 'Organic framing, asymmetric balance' : 'Rule of thirds, intentional cropping' },
+    ];
+
+    treatments.forEach((t) => {
+      if (y < 80) return;
+      page.drawText(t.label, { x: 48, y, size: 9, font: ctx.fontBold, color: c(ctx.dark) });
+      drawTextSafe(page, t.value, { x: 160, y, size: 9, font: ctx.fontRegular, color: rgb(0.35, 0.35, 0.35), maxWidth: maxTextW - 120 });
+      page.drawRectangle({ x: 48, y: y - 8, width: maxTextW, height: 0.3, color: c(ctx.pageFg), opacity: 0.06 });
+      y -= 20;
+    });
+  }
+
+  drawPageFooter(page, ctx, 'Imagery Direction');
+}
+
+// ── Color Deep-Dive Page ─────────────────────────────────────────────────────
+
+function drawColorDeepDivePage(ctx: PdfContext, colorSystem: ColorSystem, palette: BrandPalette, pageNum = 6) {
+  const page = ctx.pdfDoc.addPage(PageSizes.A4);
+  const { width, height } = ctx;
+  drawPageHeader(page, ctx, 'Color Deep-Dive', pageNum);
+
+  let y = height - 90;
+  const maxTextW = width - 96;
+
+  // Full system colors with all 4 formats
+  drawSectionLabel(page, ctx, 'System Colors', 48, y);
+  y -= 14;
+
+  const sysColors = [
+    { label: 'Background', spec: colorSystem.system.background },
+    { label: 'Surface', spec: colorSystem.system.surface },
+    { label: 'Foreground', spec: colorSystem.system.foreground },
+    { label: 'Muted', spec: colorSystem.system.muted },
+    { label: 'Border', spec: colorSystem.system.border },
+    { label: 'Accent', spec: colorSystem.system.accent },
+  ];
+
+  const colW = (maxTextW - 10) / 3;
+  sysColors.forEach((sc, i) => {
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    const sx = 48 + col * (colW + 5);
+    const sy = y - row * 68;
+    const swRgb = hexToRgb(sc.spec.hex);
+    const isDark = luminance(swRgb) < 0.5;
+    const textColor = isDark ? ctx.white : { r: 0.1, g: 0.1, b: 0.1 };
+
+    page.drawRectangle({ x: sx, y: sy - 30, width: colW, height: 30, color: c(swRgb) });
+    page.drawText(sc.label, { x: sx + 6, y: sy - 14, size: 7, font: ctx.fontBold, color: c(textColor) });
+    page.drawText(sc.spec.hex, { x: sx + 6, y: sy - 24, size: 6, font: ctx.fontRegular, color: c(textColor), opacity: 0.8 });
+    // Specs below swatch
+    page.drawText(sc.spec.rgb, { x: sx, y: sy - 40, size: 5.5, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText(sc.spec.hsl, { x: sx, y: sy - 49, size: 5.5, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText(sc.spec.cmyk, { x: sx, y: sy - 58, size: 5.5, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
+  });
+  y -= 2 * 68 + 16;
+
+  // Accessibility table
+  if (colorSystem.accessibility.length > 0 && y > 300) {
+    drawSectionLabel(page, ctx, 'Accessibility Matrix', 48, y);
+    y -= 16;
+
+    // Table header
+    page.drawRectangle({ x: 48, y: y - 4, width: maxTextW, height: 18, color: c(ctx.lightGray) });
+    page.drawText('Color Pair', { x: 56, y: y, size: 7, font: ctx.fontBold, color: c(ctx.dark) });
+    page.drawText('Ratio', { x: 260, y: y, size: 7, font: ctx.fontBold, color: c(ctx.dark) });
+    page.drawText('AA', { x: 330, y: y, size: 7, font: ctx.fontBold, color: c(ctx.dark) });
+    page.drawText('AAA', { x: 380, y: y, size: 7, font: ctx.fontBold, color: c(ctx.dark) });
+    y -= 20;
+
+    colorSystem.accessibility.forEach((check) => {
+      if (y < 120) return;
+      drawTextSafe(page, check.pair, { x: 56, y, size: 8, font: ctx.fontRegular, color: rgb(0.3, 0.3, 0.3), maxWidth: 195 });
+      page.drawText(`${check.ratio}:1`, { x: 260, y, size: 8, font: ctx.fontRegular, color: rgb(0.3, 0.3, 0.3) });
+      page.drawRectangle({ x: 330, y: y - 2, width: 8, height: 8, color: check.aaPass ? rgb(0.13, 0.77, 0.37) : rgb(0.94, 0.27, 0.27) });
+      page.drawText(check.aaPass ? 'Pass' : 'Fail', { x: 342, y, size: 7, font: ctx.fontRegular, color: rgb(0.4, 0.4, 0.4) });
+      page.drawRectangle({ x: 380, y: y - 2, width: 8, height: 8, color: check.aaaPass ? rgb(0.13, 0.77, 0.37) : rgb(0.94, 0.27, 0.27) });
+      page.drawText(check.aaaPass ? 'Pass' : 'Fail', { x: 392, y, size: 7, font: ctx.fontRegular, color: rgb(0.4, 0.4, 0.4) });
+      page.drawRectangle({ x: 48, y: y - 8, width: maxTextW, height: 0.3, color: c(ctx.pageFg), opacity: 0.06 });
+      y -= 18;
+    });
+    y -= 12;
+  }
+
+  // Proportions bar chart
+  if (y > 200) {
+    drawSectionLabel(page, ctx, 'Usage Proportions', 48, y);
+    y -= 16;
+
+    const barH = 32;
+    const props = colorSystem.proportions;
+    const segments = [
+      { pct: props.background, color: hexToRgb(colorSystem.system.background.hex), label: `Background ${props.background}%` },
+      { pct: props.surface, color: hexToRgb(colorSystem.system.surface.hex), label: `Surface ${props.surface}%` },
+      { pct: props.foreground, color: hexToRgb(colorSystem.system.foreground.hex), label: `Foreground ${props.foreground}%` },
+      { pct: props.accent, color: hexToRgb(colorSystem.system.accent.hex), label: `Accent ${props.accent}%` },
+    ];
+
+    let bx = 48;
+    segments.forEach((seg) => {
+      const segW = maxTextW * seg.pct / 100;
+      page.drawRectangle({ x: bx, y: y - barH, width: segW, height: barH, color: c(seg.color) });
+      if (segW > 50) {
+        const isDk = luminance(seg.color) < 0.5;
+        page.drawText(`${seg.pct}%`, { x: bx + 6, y: y - barH / 2 - 3, size: 7, font: ctx.fontBold, color: isDk ? c(ctx.white) : rgb(0.1, 0.1, 0.1) });
+      }
+      bx += segW;
+    });
+    y -= barH + 10;
+    page.drawText(segments.map(s => s.label).join('   '), { x: 48, y, size: 7, font: ctx.fontRegular, color: rgb(0.45, 0.45, 0.45) });
+    y -= 24;
+  }
+
+  // Dark theme preview
+  if (y > 120) {
+    drawSectionLabel(page, ctx, `Theme: ${colorSystem.theme === 'dark' ? 'Dark' : 'Light'}`, 48, y);
+    y -= 14;
+    const previewH = Math.min(60, y - 60);
+    const bg = hexToRgb(colorSystem.system.background.hex);
+    const fg = hexToRgb(colorSystem.system.foreground.hex);
+    const accent = hexToRgb(colorSystem.system.accent.hex);
+    page.drawRectangle({ x: 48, y: y - previewH, width: maxTextW, height: previewH, color: c(bg) });
+    page.drawText('Heading Text', { x: 64, y: y - 20, size: 12, font: ctx.brandDisplayFont, color: c(fg) });
+    page.drawText('Body text preview in theme colors', { x: 64, y: y - 36, size: 9, font: ctx.fontRegular, color: c(fg), opacity: 0.7 });
+    page.drawRectangle({ x: maxTextW - 60, y: y - previewH + 12, width: 80, height: 24, color: c(accent) });
+    const isDkAccent = luminance(accent) < 0.5;
+    page.drawText('Button', { x: maxTextW - 42, y: y - previewH + 20, size: 8, font: ctx.fontBold, color: isDkAccent ? c(ctx.white) : rgb(0.1, 0.1, 0.1) });
+  }
+
+  drawPageFooter(page, ctx, 'Color Deep-Dive');
+}
+
+// ── Digital Applications Page ────────────────────────────────────────────────
+
+function drawDigitalApplicationsPage(ctx: PdfContext, palette: BrandPalette, brief: DesignBrief, pageNum = 10) {
+  const page = ctx.pdfDoc.addPage(PageSizes.A4);
+  const { width, height } = ctx;
+  drawPageHeader(page, ctx, 'Digital Applications', pageNum);
+
+  let y = height - 90;
+  const maxTextW = width - 96;
+
+  // Website header mockup
+  drawSectionLabel(page, ctx, 'Website Header', 48, y);
+  y -= 14;
+
+  const headerH = 70;
+  page.drawRectangle({ x: 48, y: y - headerH, width: maxTextW, height: headerH, color: c(ctx.white) });
+  page.drawRectangle({ x: 48, y: y - headerH, width: maxTextW, height: headerH, borderColor: rgb(0.88, 0.88, 0.88), borderWidth: 0.5 });
+  // Logo in header
+  page.drawImage(ctx.logoPng, { x: 62, y: y - 38, width: 28, height: 28 });
+  drawTextSafe(page, ctx.brandTitle, { x: 96, y: y - 28, size: 10, font: ctx.brandDisplayFont, color: c(ctx.dark), maxWidth: 120 });
+  // Nav items
+  const navItems = ['Home', 'About', 'Services', 'Contact'];
+  let navX = maxTextW - 140;
+  navItems.forEach((item) => {
+    page.drawText(item, { x: navX, y: y - 28, size: 7, font: ctx.fontRegular, color: rgb(0.4, 0.4, 0.4) });
+    navX += 40;
+  });
+  // CTA button
+  page.drawRectangle({ x: maxTextW - 20, y: y - 36, width: 56, height: 22, color: c(ctx.visPrimary) });
+  const ctaColor = luminance(ctx.visPrimary) < 0.5 ? ctx.white : { r: 0.1, g: 0.1, b: 0.1 };
+  page.drawText('Get Started', { x: maxTextW - 12, y: y - 30, size: 6, font: ctx.fontBold, color: c(ctaColor) });
+
+  y -= headerH + 24;
+
+  // Button states
+  if (y > 420) {
+    drawSectionLabel(page, ctx, 'Button States', 48, y);
+    y -= 20;
+
+    const btnW = 100;
+    const btnH = 30;
+    const btnGap = 16;
+    const states = [
+      { label: 'Default', bgColor: ctx.visPrimary, opacity: 1 },
+      { label: 'Hover', bgColor: ctx.accent, opacity: 1 },
+      { label: 'Disabled', bgColor: ctx.lightGray, opacity: 0.5 },
+    ];
+
+    states.forEach((state, i) => {
+      const bx = 48 + i * (btnW + btnGap);
+      page.drawRectangle({ x: bx, y: y - btnH, width: btnW, height: btnH, color: c(state.bgColor), opacity: state.opacity });
+      const isDk = luminance(state.bgColor) < 0.5;
+      const btnText = isDk ? ctx.white : { r: 0.1, g: 0.1, b: 0.1 };
+      page.drawText('Button Text', { x: bx + 18, y: y - btnH / 2 - 4, size: 8, font: ctx.fontBold, color: c(btnText) });
+      page.drawText(state.label, { x: bx + btnW / 2 - 16, y: y - btnH - 14, size: 7, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
+    });
+    y -= btnH + 36;
+  }
+
+  // Form input preview
+  if (y > 300) {
+    drawSectionLabel(page, ctx, 'Form Elements', 48, y);
+    y -= 20;
+
+    const inputW = maxTextW * 0.6;
+    const inputH = 28;
+
+    // Label
+    page.drawText('Email Address', { x: 48, y, size: 8, font: ctx.fontBold, color: c(ctx.dark) });
+    y -= 14;
+
+    // Input field
+    page.drawRectangle({ x: 48, y: y - inputH, width: inputW, height: inputH, color: c(ctx.white) });
+    page.drawRectangle({ x: 48, y: y - inputH, width: inputW, height: inputH, borderColor: rgb(0.8, 0.8, 0.82), borderWidth: 1 });
+    page.drawText('you@example.com', { x: 58, y: y - inputH / 2 - 4, size: 8, font: ctx.fontRegular, color: rgb(0.6, 0.6, 0.6) });
+    y -= inputH + 12;
+
+    // Focused input
+    page.drawText('Password', { x: 48, y, size: 8, font: ctx.fontBold, color: c(ctx.dark) });
+    y -= 14;
+    page.drawRectangle({ x: 48, y: y - inputH, width: inputW, height: inputH, color: c(ctx.white) });
+    page.drawRectangle({ x: 48, y: y - inputH, width: inputW, height: inputH, borderColor: c(ctx.visPrimary), borderWidth: 1.5 });
+    page.drawText('••••••••', { x: 58, y: y - inputH / 2 - 4, size: 10, font: ctx.fontRegular, color: c(ctx.dark) });
+    y -= inputH + 20;
+  }
+
+  // Card component preview
+  if (y > 180) {
+    drawSectionLabel(page, ctx, 'Card Component', 48, y);
+    y -= 14;
+
+    const cardW = maxTextW * 0.5;
+    const cardH = 100;
+    page.drawRectangle({ x: 48, y: y - cardH, width: cardW, height: cardH, color: c(ctx.white) });
+    page.drawRectangle({ x: 48, y: y - cardH, width: cardW, height: cardH, borderColor: rgb(0.9, 0.9, 0.9), borderWidth: 0.5 });
+    page.drawRectangle({ x: 48, y: y, width: cardW, height: 3, color: c(ctx.accent) });
+    page.drawText('Card Title', { x: 62, y: y - 24, size: 11, font: ctx.brandDisplayFont, color: c(ctx.dark) });
+    const cardText = 'A sample card component showing the brand design system applied to a common UI pattern.';
+    const cardLines = wrapText(cardText, ctx.fontRegular, 8, cardW - 28);
+    cardLines.slice(0, 3).forEach((line, li) => {
+      page.drawText(line, { x: 62, y: y - 42 - (li * 12), size: 8, font: ctx.fontRegular, color: rgb(0.4, 0.4, 0.4) });
+    });
+    page.drawText('Learn more →', { x: 62, y: y - cardH + 14, size: 8, font: ctx.fontBold, color: c(ctx.visPrimary) });
+  }
+
+  drawPageFooter(page, ctx, 'Digital Applications');
+}
+
+// ── Extended Applications Page ───────────────────────────────────────────────
+
+function drawExtendedApplicationsPage(ctx: PdfContext, palette: BrandPalette, brief: DesignBrief, pageNum = 11) {
+  const page = ctx.pdfDoc.addPage(PageSizes.A4);
+  const { width, height } = ctx;
+  drawPageHeader(page, ctx, 'Extended Applications', pageNum);
+
+  let y = height - 90;
+  const maxTextW = width - 96;
+
+  // Letterhead mockup
+  drawSectionLabel(page, ctx, 'Letterhead', 48, y);
+  y -= 14;
+
+  const lhW = maxTextW * 0.55;
+  const lhH = 180;
+  const lhX = 48;
+
+  page.drawRectangle({ x: lhX, y: y - lhH, width: lhW, height: lhH, color: c(ctx.white) });
+  page.drawRectangle({ x: lhX, y: y - lhH, width: lhW, height: lhH, borderColor: rgb(0.88, 0.88, 0.88), borderWidth: 0.3 });
+  page.drawRectangle({ x: lhX, y: y - 2.5, width: lhW, height: 2.5, color: c(ctx.accent) });
+  page.drawImage(ctx.logoPng, { x: lhX + 14, y: y - 36, width: 26, height: 26 });
+  for (let i = 0; i < 7; i++) {
+    const lw = i === 0 ? lhW * 0.45 : lhW * (0.4 + Math.random() * 0.35);
+    page.drawRectangle({ x: lhX + 14, y: y - 55 - (i * 12), width: Math.min(lw, lhW - 28), height: 4, color: c(ctx.dark), opacity: 0.06 });
+  }
+  page.drawRectangle({ x: lhX + 14, y: y - lhH + 18, width: lhW - 28, height: 0.5, color: c(ctx.visPrimary), opacity: 0.3 });
+  page.drawText(ctx.domainName, { x: lhX + 14, y: y - lhH + 8, size: 5, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
+
+  // Envelope mockup beside letterhead
+  const envX = lhX + lhW + 20;
+  const envW = maxTextW - lhW - 20;
+  const envH = 70;
+  drawSectionLabel(page, ctx, 'Envelope', envX, y);
+  const envTopY = y - 14;
+  page.drawRectangle({ x: envX, y: envTopY - envH, width: envW, height: envH, color: c(ctx.white) });
+  page.drawRectangle({ x: envX, y: envTopY - envH, width: envW, height: envH, borderColor: rgb(0.88, 0.88, 0.88), borderWidth: 0.3 });
+  page.drawRectangle({ x: envX, y: envTopY, width: envW, height: 2, color: c(ctx.accent) });
+  page.drawImage(ctx.logoPng, { x: envX + 8, y: envTopY - 22, width: 14, height: 14 });
+  page.drawText(ctx.domainName, { x: envX + 26, y: envTopY - 16, size: 5, font: ctx.fontRegular, color: c(ctx.dark) });
+
+  y -= lhH + 30;
+
+  // Email signature preview
+  if (y > 340) {
+    drawSectionLabel(page, ctx, 'Email Signature', 48, y);
+    y -= 14;
+
+    const sigW = maxTextW * 0.6;
+    const sigH = 80;
+    page.drawRectangle({ x: 48, y: y - sigH, width: sigW, height: sigH, color: c(ctx.white) });
+    page.drawRectangle({ x: 48, y: y - sigH, width: sigW, height: sigH, borderColor: rgb(0.88, 0.88, 0.88), borderWidth: 0.3 });
+    // Divider line at top
+    page.drawRectangle({ x: 48, y: y, width: sigW, height: 2, color: c(ctx.accent) });
+    const contact = getSectorContact(brief.sectorClassification);
+    page.drawImage(ctx.logoPng, { x: 60, y: y - 40, width: 30, height: 30 });
+    page.drawText(contact.name, { x: 100, y: y - 16, size: 9, font: ctx.fontBold, color: c(ctx.dark) });
+    page.drawText(contact.title, { x: 100, y: y - 28, size: 7, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText(`${contact.email}@${ctx.domainName}`, { x: 100, y: y - 40, size: 7, font: ctx.fontRegular, color: c(ctx.visPrimary) });
+    page.drawText(`${ctx.domainName}.com  |  +1 (555) 000-0000`, { x: 60, y: y - sigH + 12, size: 6, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
+
+    y -= sigH + 24;
+  }
+
+  // Social media grid (4 platform previews)
+  if (y > 180) {
+    drawSectionLabel(page, ctx, 'Social Media Profiles', 48, y);
+    y -= 14;
+
+    const platforms = [
+      { name: 'LinkedIn', size: '1200×628' },
+      { name: 'Twitter/X', size: '1500×500' },
+      { name: 'Instagram', size: '1080×1080' },
+      { name: 'Facebook', size: '820×312' },
+    ];
+
+    const gridW = (maxTextW - 12) / 2;
+    const gridH = 50;
+    platforms.forEach((p, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const gx = 48 + col * (gridW + 12);
+      const gy = y - row * (gridH + 16);
+      if (gy - gridH < 60) return;
+
+      page.drawRectangle({ x: gx, y: gy - gridH, width: gridW, height: gridH, color: c(ctx.visPrimary), opacity: 0.15 });
+      page.drawImage(ctx.logoPngTransparent, { x: gx + gridW / 2 - 12, y: gy - gridH / 2 - 10, width: 24, height: 24 });
+      page.drawText(p.name, { x: gx + 4, y: gy - gridH - 12, size: 7, font: ctx.fontBold, color: c(ctx.pageFg) });
+      page.drawText(p.size, { x: gx + gridW - 50, y: gy - gridH - 12, size: 6, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
+    });
+  }
+
+  drawPageFooter(page, ctx, 'Extended Applications');
+}
+
+// ── Page: Do's & Don'ts ─────────────────────────────────────────────────────
+
+function drawDosDontsPage(ctx: PdfContext, palette: BrandPalette, brief?: DesignBrief, pageNum = 6) {
+  const page = ctx.pdfDoc.addPage(PageSizes.A4);
+  const { width, height } = ctx;
+  drawPageHeader(page, ctx, "Do's & Don'ts", pageNum);
 
   let y = height - 90;
   const maxTextW = width - 120;
