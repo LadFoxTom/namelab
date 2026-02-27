@@ -1,9 +1,10 @@
 import { fal } from '@fal-ai/client';
 import { BrandSignals } from './signals';
-import { buildPromptSet, LogoStyle, PromptSet } from './prompts';
+import { buildPromptSet, LogoStyle, PromptSet, deriveMonogramLetters } from './prompts';
 import { GeneratedPalette } from './palettePregen';
 import { evaluateConcept, ACCEPT_THRESHOLD } from './evaluationAgent';
 import { refinePrompt } from './promptRefinementAgent';
+import { reviewLogoText } from './textReviewer';
 import { DesignBrief } from './strategist';
 
 fal.config({ credentials: process.env.FAL_KEY! });
@@ -23,6 +24,15 @@ export interface GeneratedConcept {
 const LOGO_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark', 'pictorial', 'mascot', 'emblem', 'dynamic'];
 const FAL_CONCURRENCY = 2;
 const MAX_ATTEMPTS = 2;
+const MAX_ATTEMPTS_TEXT = 3; // Extra attempt for text-bearing styles
+
+const TEXT_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'emblem', 'dynamic'];
+
+function getExpectedText(style: LogoStyle, signals: BrandSignals, brief?: DesignBrief): string | null {
+  if (TEXT_STYLES.includes(style)) return brief?.brandName || signals.domainName;
+  if (style === 'monogram') return deriveMonogramLetters(signals.domainName, brief).initials;
+  return null;
+}
 
 async function runWithConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): Promise<PromiseSettledResult<T>[]> {
   const results: PromiseSettledResult<T>[] = new Array(tasks.length);
@@ -82,7 +92,10 @@ async function generateStyleWithEvaluation(
   let promptSet: PromptSet = buildPromptSet(style, signals, palette, brief);
   let bestResult: { imageUrl: string; seed: number; score: number; flags: string[]; promptSet: PromptSet } | null = null;
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  const expectedText = getExpectedText(style, signals, brief);
+  const maxAttempts = expectedText ? MAX_ATTEMPTS_TEXT : MAX_ATTEMPTS;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     // Generate 1 candidate
     const { imageUrl, seed } = await generateCandidate(promptSet);
 
@@ -94,8 +107,32 @@ async function generateStyleWithEvaluation(
       bestResult = { imageUrl, seed, score: evaluation.score, flags: evaluation.flags, promptSet };
     }
 
-    // Accept if passes threshold
+    // Accept if passes visual threshold, then check text correctness
     if (evaluation.passed) {
+      if (expectedText) {
+        const textReview = await reviewLogoText(imageUrl, style, expectedText);
+        if (!textReview.textCorrect) {
+          console.log(`[Brand] ${style} attempt ${attempt} text incorrect: got "${textReview.detectedText}", expected "${expectedText}"`);
+          // Treat as failed — refine prompt with stronger text emphasis
+          evaluation.passed = false;
+          evaluation.flags.push('wrong_text');
+          evaluation.refinementInstructions =
+            `The text in the logo is WRONG. It shows "${textReview.detectedText}" but must show exactly "${expectedText}". Spell each letter: ${expectedText.split('').join('-')}.`;
+
+          if (attempt < maxAttempts) {
+            promptSet = await refinePrompt(
+              promptSet.prompt,
+              promptSet.negativePrompt,
+              evaluation,
+              style,
+              signals,
+              attempt + 1
+            );
+          }
+          continue;
+        }
+      }
+
       console.log(`[Brand] ${style} accepted on attempt ${attempt} with score ${evaluation.score}`);
       return {
         style,
@@ -111,7 +148,7 @@ async function generateStyleWithEvaluation(
     }
 
     // If more attempts available, refine the prompt
-    if (attempt < MAX_ATTEMPTS) {
+    if (attempt < maxAttempts) {
       console.log(`[Brand] ${style} attempt ${attempt} scored ${evaluation.score}, refining prompt...`);
       promptSet = await refinePrompt(
         promptSet.prompt,
@@ -125,7 +162,7 @@ async function generateStyleWithEvaluation(
   }
 
   // Fallback: use best result we found across all attempts
-  console.warn(`[Brand] ${style} used best result after ${MAX_ATTEMPTS} attempts. Score: ${bestResult!.score}`);
+  console.warn(`[Brand] ${style} used best result after ${maxAttempts} attempts. Score: ${bestResult!.score}`);
   return {
     style,
     imageUrl: bestResult!.imageUrl,
@@ -134,7 +171,7 @@ async function generateStyleWithEvaluation(
     seed: bestResult!.seed,
     score: bestResult!.score,
     evaluationFlags: bestResult!.flags,
-    attemptCount: MAX_ATTEMPTS,
+    attemptCount: maxAttempts,
     passedEvaluation: false,
   };
 }

@@ -25,7 +25,8 @@ export type EvaluationFlag =
   | 'cluttered'
   | 'gradient_heavy'
   | 'low_contrast'
-  | 'wrong_aspect_ratio';
+  | 'wrong_aspect_ratio'
+  | 'wrong_text';
 
 const STYLE_RUBRICS: Record<LogoStyle, string> = {
   wordmark: `

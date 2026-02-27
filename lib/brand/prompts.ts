@@ -203,7 +203,7 @@ Professional logo, brand identity, vector graphic.
   };
 }
 
-function deriveMonogramLetters(domainName: string, brief?: DesignBrief): { initials: string; firstLetter: string } {
+export function deriveMonogramLetters(domainName: string, brief?: DesignBrief): { initials: string; firstLetter: string } {
   // Use the brand name from the brief if available (may differ from domain)
   const brandName = brief?.brandName || domainName;
   const firstLetter = brandName[0].toUpperCase();

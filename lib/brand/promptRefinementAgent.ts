@@ -54,6 +54,10 @@ const FLAG_FIXES: Record<EvaluationFlag, { addToPrompt: string; addToNegative: s
     addToPrompt: 'perfectly centered composition, equal padding on all sides, square format,',
     addToNegative: 'off-center, asymmetric layout, touching edges,',
   },
+  wrong_text: {
+    addToPrompt: 'CRITICAL: spell the brand name EXACTLY correct, letter by letter. The text must be perfectly accurate.',
+    addToNegative: 'misspelled text, wrong letters, garbled text, incorrect spelling,',
+  },
 };
 
 export async function refinePrompt(
