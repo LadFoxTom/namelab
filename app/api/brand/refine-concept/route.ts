@@ -37,11 +37,14 @@ export async function POST(req: NextRequest) {
   // 2. Revise the prompt with GPT
   const revisedPrompt = await revisePromptWithFeedback(concept.promptUsed, feedback.trim());
 
-  // 3. Generate new image via Flux
-  const result = await fal.subscribe('fal-ai/flux/schnell', {
+  // 3. Generate refined image via Flux img2img (keeps the original composition)
+  const result = await fal.subscribe('fal-ai/flux/dev/image-to-image', {
     input: {
+      image_url: concept.previewUrl,
       prompt: revisedPrompt,
-      image_size: { width: 1024, height: 1024 },
+      strength: 0.6,
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
       num_images: 1,
     },
     logs: false,
