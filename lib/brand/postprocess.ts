@@ -140,15 +140,48 @@ export async function removeWhiteBackground(imageBuffer: Buffer, threshold = 240
     }
   }
 
-  // Pass 2: Also clear enclosed white pixels (e.g. letter counters in 'e', 'o', 'a').
-  // These are NOT border-connected but should still be transparent for logo use on
-  // colored backgrounds. Only target very white pixels that weren't already handled.
+  // Pass 2: Clear only SMALL enclosed white regions (letter counters in 'e', 'o', 'a').
+  // Large enclosed white areas (e.g. a white otter body, white fill in logo shapes)
+  // are intentional design elements and must be preserved.
+  // Strategy: flood-fill each unvisited white region, measure its size, only clear if small.
+  const enclosedVisited = new Uint8Array(total);
+  const maxEnclosedArea = total * 0.02; // regions > 2% of image are intentional design
+
   for (let i = 0; i < total; i++) {
-    if (!visited[i]) {
+    if (!visited[i] && !enclosedVisited[i]) {
       const off = i * 4;
       if (pixels[off] >= threshold && pixels[off + 1] >= threshold && pixels[off + 2] >= threshold && pixels[off + 3] > 0) {
-        const whiteness = Math.min(pixels[off], pixels[off + 1], pixels[off + 2]);
-        pixels[off + 3] = whiteness >= 250 ? 0 : Math.round((255 - whiteness) * 3);
+        // BFS to find this enclosed white region
+        const region: number[] = [i];
+        enclosedVisited[i] = 1;
+        let rHead = 0;
+        while (rHead < region.length) {
+          const idx = region[rHead++];
+          const rx = idx % width, ry = (idx - rx) / width;
+          const rNeighbors = [];
+          if (rx > 0) rNeighbors.push(idx - 1);
+          if (rx < width - 1) rNeighbors.push(idx + 1);
+          if (ry > 0) rNeighbors.push(idx - width);
+          if (ry < height - 1) rNeighbors.push(idx + width);
+          for (const n of rNeighbors) {
+            if (!visited[n] && !enclosedVisited[n]) {
+              const nOff = n * 4;
+              if (pixels[nOff] >= threshold && pixels[nOff + 1] >= threshold && pixels[nOff + 2] >= threshold && pixels[nOff + 3] > 0) {
+                enclosedVisited[n] = 1;
+                region.push(n);
+              }
+            }
+          }
+        }
+
+        // Only clear small regions (letter counters), preserve large ones (design fills)
+        if (region.length <= maxEnclosedArea) {
+          for (const idx of region) {
+            const rOff = idx * 4;
+            const whiteness = Math.min(pixels[rOff], pixels[rOff + 1], pixels[rOff + 2]);
+            pixels[rOff + 3] = whiteness >= 250 ? 0 : Math.round((255 - whiteness) * 3);
+          }
+        }
       }
     }
   }
