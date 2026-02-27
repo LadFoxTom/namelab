@@ -297,6 +297,120 @@ export function briefToSignals(
   };
 }
 
+// ── Brand Feedback: structured options for rebuild ──────────────────────────
+
+export interface BrandFeedback {
+  colorTemperature?: 'warmer' | 'cooler' | 'no change';
+  colorVibrancy?: 'more vibrant' | 'more muted' | 'no change';
+  fontStyle?: 'more modern' | 'more classic' | 'bolder' | 'lighter' | 'no change';
+  socialStyle?: 'more minimal' | 'more vibrant' | 'more editorial' | 'no change';
+  themePreference?: 'light' | 'dark' | 'no change';
+  freeText?: string;
+}
+
+export async function reviseBrief(
+  currentBrief: DesignBrief,
+  feedback: BrandFeedback
+): Promise<DesignBrief> {
+  const feedbackLines: string[] = [];
+
+  if (feedback.colorTemperature && feedback.colorTemperature !== 'no change') {
+    feedbackLines.push(`Color temperature: shift ${feedback.colorTemperature} (adjust colorGuidance.temperature and hex suggestions accordingly)`);
+  }
+  if (feedback.colorVibrancy && feedback.colorVibrancy !== 'no change') {
+    feedbackLines.push(`Color vibrancy: make colors ${feedback.colorVibrancy} (adjust colorGuidance.saturationLevel and hex suggestions)`);
+  }
+  if (feedback.fontStyle && feedback.fontStyle !== 'no change') {
+    feedbackLines.push(`Font style: shift ${feedback.fontStyle} (adjust typeGuidance category, formality, and font suggestions)`);
+  }
+  if (feedback.socialStyle && feedback.socialStyle !== 'no change') {
+    feedbackLines.push(`Social media style: make it ${feedback.socialStyle} (adjust aestheticDirection and personalityTraits to reflect this)`);
+  }
+  if (feedback.themePreference && feedback.themePreference !== 'no change') {
+    feedbackLines.push(`Theme preference: change to "${feedback.themePreference}" (update themePreference field)`);
+  }
+  if (feedback.freeText) {
+    feedbackLines.push(`Additional user feedback: ${feedback.freeText}`);
+  }
+
+  if (feedbackLines.length === 0) {
+    return currentBrief;
+  }
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    temperature: 0.5,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: `You are a senior brand strategist revising an existing design brief based on client feedback.
+
+RULES:
+- Only change what the feedback explicitly asks for. Preserve everything else exactly.
+- Keep the same brandName, tagline, sectorClassification, tensionPair, memorableAnchor, and logoGuidance unless the feedback specifically addresses them.
+- When shifting colors warmer: move hex values toward red/orange/yellow hues, set temperature to "warm".
+- When shifting colors cooler: move hex values toward blue/purple/teal hues, set temperature to "cool".
+- When making colors more vibrant: increase saturation, set saturationLevel to "vibrant".
+- When making colors more muted: decrease saturation, set saturationLevel to "muted" or "desaturated".
+- When shifting fonts more modern: prefer geometric sans, lower formality.
+- When shifting fonts more classic: prefer serif categories, higher formality.
+- When shifting fonts bolder: prefer display_expressive or condensed, increase formality.
+- When shifting fonts lighter: prefer humanist_sans, decrease formality.
+- Return the COMPLETE revised brief as JSON, same schema as the input.`,
+      },
+      {
+        role: 'user',
+        content: `Here is the current design brief:
+${JSON.stringify(currentBrief, null, 2)}
+
+Client feedback to apply:
+${feedbackLines.map(l => `- ${l}`).join('\n')}
+
+Return the revised brief as a complete JSON object with the same structure.`,
+      },
+    ],
+  });
+
+  const parsed = JSON.parse(response.choices[0].message.content!);
+
+  // Validate and merge with defaults from current brief to ensure no fields are missing
+  return {
+    brandName: parsed.brandName || currentBrief.brandName,
+    tagline: parsed.tagline || currentBrief.tagline,
+    sectorClassification: parsed.sectorClassification || currentBrief.sectorClassification,
+    tensionPair: parsed.tensionPair || currentBrief.tensionPair,
+    aestheticDirection: parsed.aestheticDirection || currentBrief.aestheticDirection,
+    memorableAnchor: parsed.memorableAnchor || currentBrief.memorableAnchor,
+    brandPillars: parsed.brandPillars || currentBrief.brandPillars,
+    personalityTraits: parsed.personalityTraits || currentBrief.personalityTraits,
+    targetAudienceSummary: parsed.targetAudienceSummary || currentBrief.targetAudienceSummary,
+    themePreference: parsed.themePreference || currentBrief.themePreference,
+    typeGuidance: {
+      displayCategory: parsed.typeGuidance?.displayCategory || currentBrief.typeGuidance.displayCategory,
+      bodyCategory: parsed.typeGuidance?.bodyCategory || currentBrief.typeGuidance.bodyCategory,
+      formalityLevel: parsed.typeGuidance?.formalityLevel ?? currentBrief.typeGuidance.formalityLevel,
+      suggestedDisplayFonts: parsed.typeGuidance?.suggestedDisplayFonts || currentBrief.typeGuidance.suggestedDisplayFonts,
+      suggestedBodyFonts: parsed.typeGuidance?.suggestedBodyFonts || currentBrief.typeGuidance.suggestedBodyFonts,
+    },
+    colorGuidance: {
+      temperature: parsed.colorGuidance?.temperature || currentBrief.colorGuidance.temperature,
+      saturationLevel: parsed.colorGuidance?.saturationLevel || currentBrief.colorGuidance.saturationLevel,
+      accentHueRange: parsed.colorGuidance?.accentHueRange || currentBrief.colorGuidance.accentHueRange,
+      avoidHues: parsed.colorGuidance?.avoidHues || currentBrief.colorGuidance.avoidHues,
+      suggestedPrimaryHex: parsed.colorGuidance?.suggestedPrimaryHex || currentBrief.colorGuidance.suggestedPrimaryHex,
+      suggestedAccentHex: parsed.colorGuidance?.suggestedAccentHex || currentBrief.colorGuidance.suggestedAccentHex,
+    },
+    logoGuidance: {
+      preferredStyles: parsed.logoGuidance?.preferredStyles || currentBrief.logoGuidance.preferredStyles,
+      geometry: parsed.logoGuidance?.geometry || currentBrief.logoGuidance.geometry,
+      strokeWeight: parsed.logoGuidance?.strokeWeight || currentBrief.logoGuidance.strokeWeight,
+      conceptSeeds: parsed.logoGuidance?.conceptSeeds || currentBrief.logoGuidance.conceptSeeds,
+    },
+    competitiveDifferentiation: parsed.competitiveDifferentiation || currentBrief.competitiveDifferentiation,
+  };
+}
+
 function mapTensionToTone(tension: string): BrandSignals['tone'] {
   const lower = tension.toLowerCase();
   if (lower.includes('playful') || lower.includes('fun') || lower.includes('friendly')) return 'playful';
