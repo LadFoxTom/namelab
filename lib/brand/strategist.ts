@@ -99,6 +99,12 @@ Identify which sector fits, what the conventions are, and what ONE convention to
 The best brands live between two opposing qualities. Find the productive tension.
 Examples: "technical but approachable", "exclusive but welcoming", "clinical but warm", "precise but playful".
 IMPORTANT: Both sides must genuinely pull in different directions. "innovative and creative" is NOT a tension.
+CRITICAL: The tension pair must be SPECIFIC to this brand. Generic tensions are BANNED:
+- "playful but sophisticated" — overused, too vague
+- "professional but approachable" — overused, too vague
+- "modern but timeless" — overused, too vague
+- "simple but powerful" — overused, too vague
+Find something that could ONLY belong to THIS brand. e.g. "monster-movie bold but artisanally precise" for a novelty coffee shop.
 
 **Step 3 — Aesthetic Direction**
 Choose ONE specific aesthetic direction. "Modern" and "clean" are NOT directions. Be specific.
@@ -167,14 +173,46 @@ Return a JSON object with this exact structure:
     ]
   });
 
-  const parsed = JSON.parse(response.choices[0].message.content!);
+  let parsed = JSON.parse(response.choices[0].message.content!);
+
+  // Retry if the tension pair is a banned generic one
+  const BANNED_TENSIONS = [
+    'playful but sophisticated', 'professional but approachable',
+    'modern but timeless', 'simple but powerful',
+    'innovative but reliable', 'bold but elegant',
+  ];
+  if (parsed.tensionPair && BANNED_TENSIONS.includes(parsed.tensionPair.toLowerCase())) {
+    try {
+      const retryResponse = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        temperature: 0.9, // Higher temp for more variety
+        response_format: { type: 'json_object' },
+        messages: [
+          ...response.choices[0].message.content ? [{
+            role: 'assistant' as const,
+            content: response.choices[0].message.content,
+          }] : [],
+          {
+            role: 'user',
+            content: `The tension pair "${parsed.tensionPair}" is too generic. Generate a NEW, more specific tension pair that could only belong to this brand. Return the full brief JSON with only tensionPair changed.`,
+          },
+        ],
+      });
+      const retryParsed = JSON.parse(retryResponse.choices[0].message.content!);
+      if (retryParsed.tensionPair && !BANNED_TENSIONS.includes(retryParsed.tensionPair.toLowerCase())) {
+        parsed.tensionPair = retryParsed.tensionPair;
+      }
+    } catch {
+      // Keep original tension if retry fails
+    }
+  }
 
   // Validate and provide defaults for critical fields
   return {
     brandName: parsed.brandName || domainName,
     tagline: parsed.tagline || '',
     sectorClassification: parsed.sectorClassification || 'Technology / SaaS',
-    tensionPair: parsed.tensionPair || 'professional but approachable',
+    tensionPair: parsed.tensionPair || 'precise but inviting',
     aestheticDirection: parsed.aestheticDirection || 'Precision Minimalism',
     memorableAnchor: parsed.memorableAnchor || '',
     brandPillars: parsed.brandPillars || [],

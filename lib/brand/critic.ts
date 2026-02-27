@@ -1,5 +1,5 @@
 import { DesignBrief } from './strategist';
-import { TypeSystem } from './typographer';
+import { TypeSystem, getFontWeights } from './typographer';
 import { ColorSystem, AccessibilityCheck } from './colorist';
 import { BrandSignals } from './signals';
 import { FontPairing } from './typography';
@@ -207,8 +207,10 @@ export function runCriticQA(
   if (colorSystem) {
     const failingChecks = colorSystem.accessibility.filter(c => !c.aaPass);
     if (failingChecks.length > 0) {
-      techScore -= failingChecks.length;
       for (const check of failingChecks) {
+        // Accent/background failures get a heavier penalty
+        const penalty = check.pair.includes('accent') ? 3 : 1;
+        techScore -= penalty;
         issues.push({
           severity: 'blocking',
           category: 'Accessibility',
@@ -216,8 +218,8 @@ export function runCriticQA(
         });
       }
 
-      // Auto-fix: adjust muted color if it fails
       if (fixedColorSystem) {
+        // Auto-fix: adjust muted color if it fails
         const mutedCheck = failingChecks.find(c => c.pair.includes('muted'));
         if (mutedCheck && fixedColorSystem.system.muted) {
           const oldMuted = fixedColorSystem.system.muted.hex;
@@ -239,6 +241,24 @@ export function runCriticQA(
               after: adjusted,
             });
             techScore += 1; // Partially recover score since we fixed it
+          }
+        }
+
+        // Auto-fix: adjust accent color if it fails against background
+        const accentCheck = failingChecks.find(c => c.pair.includes('accent'));
+        if (accentCheck) {
+          const oldAccent = fixedColorSystem.brand.accent;
+          const bgHex = fixedColorSystem.system.background.hex;
+          const adjustedAccent = adjustForContrast(oldAccent, bgHex, 4.5);
+          if (adjustedAccent !== oldAccent) {
+            fixedColorSystem.brand = { ...fixedColorSystem.brand, accent: adjustedAccent };
+            fixes.push({
+              category: 'Accessibility',
+              description: 'Auto-adjusted accent color to pass WCAG AA contrast against background.',
+              before: oldAccent,
+              after: adjustedAccent,
+            });
+            techScore += 2; // Partially recover the heavier penalty
           }
         }
       }
@@ -286,6 +306,80 @@ export function runCriticQA(
           description: `Type scale is not strictly descending: ${typeSystem.typeScale[i - 1].name} (${sizes[i - 1]}pt) → ${typeSystem.typeScale[i].name} (${sizes[i]}pt).`,
         });
         break;
+      }
+    }
+  }
+
+  // ── New algorithmic checks (Sprint 2) ────────────────────────
+
+  // Check: primary and accent must be visually distinct
+  if (palette.primary && palette.accent) {
+    const pHue = hexToHue(palette.primary);
+    const aHue = hexToHue(palette.accent);
+    if (pHue !== null && aHue !== null) {
+      const hueDiff = Math.abs(pHue - aHue);
+      const normDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+      const pLum = getRelativeLuminance(palette.primary);
+      const aLum = getRelativeLuminance(palette.accent);
+      const lumDiff = Math.abs(pLum - aLum);
+      if (normDiff < 15 && lumDiff < 0.1) {
+        techScore -= 3;
+        issues.push({
+          severity: 'blocking',
+          category: 'Color Distinction',
+          description: `Primary (${palette.primary}) and accent (${palette.accent}) are visually identical (hue diff: ${normDiff}°, lum diff: ${lumDiff.toFixed(2)}).`,
+        });
+      }
+    }
+  }
+
+  // Check: font weights in type scale actually exist in the font library
+  if (typeSystem?.typeScale) {
+    const WEIGHT_NAME_TO_NUM: Record<string, number> = {
+      'Light': 300, 'Regular': 400, 'Medium': 500, 'SemiBold': 600, 'Bold': 700, 'ExtraBold': 800, 'Black': 900,
+    };
+    for (const level of typeSystem.typeScale) {
+      const available = getFontWeights(level.font);
+      if (available) {
+        const numWeight = WEIGHT_NAME_TO_NUM[level.weight] || 400;
+        if (!available.includes(numWeight)) {
+          // Check if the typographer already mapped to a close weight
+          const closest = available.reduce((p, c) => Math.abs(c - numWeight) < Math.abs(p - numWeight) ? c : p);
+          if (Math.abs(closest - numWeight) > 100) {
+            techScore -= 1;
+            issues.push({
+              severity: 'warning',
+              category: 'Typography',
+              description: `${level.font} ${level.weight} (${numWeight}) not available. Closest: ${closest}. Scale level: ${level.name}.`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Check: color temperature matches brief guidance
+  if (brief.colorGuidance.temperature !== 'neutral') {
+    const pHue = hexToHue(palette.primary);
+    if (pHue !== null) {
+      // Warm hues: 0-60 (red-yellow) and 300-360 (magenta-red)
+      // Cool hues: 180-270 (cyan-blue)
+      const isWarmHue = pHue <= 60 || pHue >= 300;
+      const isCoolHue = pHue >= 180 && pHue <= 270;
+      if (brief.colorGuidance.temperature === 'warm' && isCoolHue) {
+        consistencyScore -= 1;
+        issues.push({
+          severity: 'warning',
+          category: 'Color Temperature',
+          description: `Primary color hue (${pHue}°) reads as cool, but brief expects warm temperature.`,
+        });
+      } else if (brief.colorGuidance.temperature === 'cool' && isWarmHue) {
+        consistencyScore -= 1;
+        issues.push({
+          severity: 'warning',
+          category: 'Color Temperature',
+          description: `Primary color hue (${pHue}°) reads as warm, but brief expects cool temperature.`,
+        });
       }
     }
   }
@@ -416,4 +510,81 @@ function parseCmyk(cmyk: string): { c: number; m: number; y: number; k: number }
 
 function deepCloneColorSystem(cs: ColorSystem): ColorSystem {
   return JSON.parse(JSON.stringify(cs));
+}
+
+// ── AI-powered Critic (Sprint 3) ──────────────────────────────────────────
+
+export interface AICriticResult {
+  score: number;        // 0-100
+  blocking: string[];
+  warnings: string[];
+  suggestions: string[];
+}
+
+/**
+ * AI-powered holistic brand system evaluation using GPT-4o-mini.
+ * Gated behind ENABLE_AI_CRITIC=true environment variable.
+ * Complements the algorithmic critic with subjective design quality checks.
+ */
+export async function runAICriticQA(
+  brief: DesignBrief,
+  palette: BrandPalette,
+  fonts: FontPairing,
+  typeSystem?: TypeSystem,
+  colorSystem?: ColorSystem
+): Promise<AICriticResult | null> {
+  if (process.env.ENABLE_AI_CRITIC !== 'true') return null;
+
+  try {
+    const { default: OpenAI } = await import('openai');
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const prompt = `You are a senior brand design critic at a top agency. Evaluate this brand system for professional quality.
+
+Brand Context:
+- Name: "${brief.brandName}"
+- Sector: "${brief.sectorClassification}"
+- Tension: "${brief.tensionPair}"
+- Aesthetic: "${brief.aestheticDirection}"
+- Theme: ${brief.themePreference}
+
+Color System:
+- Primary: ${palette.primary}
+- Accent: ${palette.accent}
+- Light: ${palette.light}
+- Dark: ${palette.dark}
+- Temperature guidance: ${brief.colorGuidance.temperature}
+
+Typography:
+- Display: ${fonts.heading.name} (weights: ${fonts.heading.weights.join(', ')})
+- Body: ${fonts.body.name} (weights: ${fonts.body.weights.join(', ')})
+${typeSystem ? `- Scale ratio: ${typeSystem.scaleRatioName} (${typeSystem.scaleRatio})` : ''}
+
+Evaluate:
+1. Are primary and accent colors visually distinct and harmonious?
+2. Do the colors feel appropriate for the sector "${brief.sectorClassification}"?
+3. Does the typography express the tension "${brief.tensionPair}"?
+4. Is the display/body font pairing balanced and functional?
+5. Would a top design agency approve this system?
+
+Return JSON: { "score": <0-100>, "blocking": [<critical issues>], "warnings": [<non-critical>], "suggestions": [<improvements>] }`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const result = JSON.parse(response.choices[0].message.content!);
+    return {
+      score: Math.max(0, Math.min(100, result.score || 50)),
+      blocking: Array.isArray(result.blocking) ? result.blocking : [],
+      warnings: Array.isArray(result.warnings) ? result.warnings : [],
+      suggestions: Array.isArray(result.suggestions) ? result.suggestions : [],
+    };
+  } catch (err: any) {
+    console.warn('AI Critic failed:', err.message);
+    return null;
+  }
 }

@@ -101,7 +101,7 @@ export const generateBrandAssets = inngest.createFunction(
         const socialStrategy = brief ? await generateSocialStrategy(brief, signals) : undefined;
         socialKit = await generateSocialKit(logoPngBuffer, finalPalette, signals, domainName, socialStrategy, conceptStyle);
         businessCards = await generateBusinessCards(logoPngBuffer, finalPalette, domainName, brief);
-        brandPdf = await generateBrandPdf(domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts, brief, typeSystem, finalColorSystem);
+        brandPdf = await generateBrandPdf(domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts, brief, typeSystem, finalColorSystem, logoPngTransparent);
       }
 
       const zipBuffer = await assembleZip({

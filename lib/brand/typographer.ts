@@ -122,6 +122,38 @@ function hashString(str: string): number {
   return Math.abs(hash);
 }
 
+// ── Weight mapping ──────────────────────────────────────────────────────────
+
+const WEIGHT_TO_NAME: Record<number, string> = {
+  300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Black',
+};
+
+/** Map a desired weight to the closest available weight in the font */
+function mapToAvailableWeight(desired: number, available: number[]): number {
+  if (available.length === 0) return desired;
+  return available.reduce((prev, curr) =>
+    Math.abs(curr - desired) < Math.abs(prev - desired) ? curr : prev
+  );
+}
+
+function weightName(w: number): string {
+  return WEIGHT_TO_NAME[w] || `w${w}`;
+}
+
+/** Export font weight data for the Critic to validate */
+export function getFontWeights(fontName: string): number[] | undefined {
+  for (const cat of Object.values(DISPLAY_FONTS)) {
+    const found = cat.find(f => f.name === fontName);
+    if (found) return found.weights;
+  }
+  for (const cat of Object.values(BODY_FONTS)) {
+    const found = cat.find(f => f.name === fontName);
+    if (found) return found.weights;
+  }
+  const mono = MONO_FONTS.find(f => f.name === fontName);
+  return mono?.weights;
+}
+
 // ── Type scale ratios ───────────────────────────────────────────────────────
 
 const SCALE_RATIOS: Record<string, { ratio: number; name: string }> = {
@@ -140,13 +172,14 @@ export function selectTypeSystem(brief: DesignBrief, signals: BrandSignals, conc
   const bodyCat = brief.typeGuidance.bodyCategory;
   const brandHash = hashString(signals.domainName + (brief.brandName || '') + (conceptSalt || ''));
 
-  // Select display font
+  // Select display font (prefer fonts with 3+ weights for hierarchy)
   const displayFont = selectFont(
     DISPLAY_FONTS[displayCat] || DISPLAY_FONTS['geometric_sans'],
     formality,
     brief.typeGuidance.suggestedDisplayFonts,
     undefined,
-    brandHash
+    brandHash,
+    true // isDisplayRole
   );
 
   // Select body font — must differ from display
@@ -164,7 +197,11 @@ export function selectTypeSystem(brief: DesignBrief, signals: BrandSignals, conc
   // Build type scale
   const scaleEntry = SCALE_RATIOS[String(formality)] || SCALE_RATIOS['3'];
   const baseSizePt = formality <= 2 ? 10 : formality <= 3 ? 11 : 12;
-  const typeScale = buildTypeScale(displayFont.name, bodyFont.name, monoFont.name, scaleEntry.ratio, baseSizePt);
+  const typeScale = buildTypeScale(
+    displayFont.name, bodyFont.name, monoFont.name,
+    scaleEntry.ratio, baseSizePt,
+    displayFont.weights, bodyFont.weights, monoFont.weights
+  );
 
   // Build Google Fonts URL
   const fontFamilies = [
@@ -174,8 +211,9 @@ export function selectTypeSystem(brief: DesignBrief, signals: BrandSignals, conc
   ];
   const googleFontsUrl = `https://fonts.googleapis.com/css2?${fontFamilies.join('&')}&display=swap`;
 
+  const categoryProse = displayCat.replace(/^display_/, '').replace(/_/g, ' ');
   const pairingRationale = `${displayFont.name} (${displayFont.personality}) paired with ${bodyFont.name} (${bodyFont.personality}). ` +
-    `The display font's ${displayCat.replace(/_/g, ' ')} character expresses the brand tension "${brief.tensionPair}", ` +
+    `The display font's ${categoryProse} character expresses the brand tension "${brief.tensionPair}", ` +
     `while ${bodyFont.name} provides ${bodyCat.replace(/_/g, ' ')} readability. ` +
     `${monoFont.name} completes the system for technical contexts.`;
 
@@ -196,9 +234,18 @@ function selectFont(
   formality: number,
   suggested: string[],
   excludeName?: string,
-  brandHash?: number
+  brandHash?: number,
+  isDisplayRole?: boolean
 ): FontEntry {
-  const base = candidates.filter(f => f.name !== excludeName && !OVERUSED.includes(f.name));
+  let base = candidates.filter(f => f.name !== excludeName && !OVERUSED.includes(f.name));
+
+  // For display role, prefer fonts with >= 3 weights for proper hierarchy.
+  // Move low-weight fonts to the end rather than excluding them entirely.
+  if (isDisplayRole) {
+    const rich = base.filter(f => f.weights.length >= 3);
+    const sparse = base.filter(f => f.weights.length < 3);
+    base = [...rich, ...sparse];
+  }
 
   // 1. Collect strategist-suggested fonts that exist in our library
   const suggestedMatches: FontEntry[] = [];
@@ -247,17 +294,27 @@ function buildTypeScale(
   bodyFont: string,
   monoFont: string,
   ratio: number,
-  baseSizePt: number
+  baseSizePt: number,
+  displayWeights: number[],
+  bodyWeights: number[],
+  monoWeights: number[]
 ): TypeScaleLevel[] {
   const scale = (power: number) => Math.round(baseSizePt * Math.pow(ratio, power) * 10) / 10;
 
+  // Map desired weights to actually available weights
+  const dBold = mapToAvailableWeight(700, displayWeights);
+  const dSemiBold = mapToAvailableWeight(600, displayWeights);
+  const dMedium = mapToAvailableWeight(500, displayWeights);
+  const bRegular = mapToAvailableWeight(400, bodyWeights);
+  const mRegular = mapToAvailableWeight(400, monoWeights);
+
   return [
-    { name: 'Display', font: displayFont, weight: 'Bold',     sizePt: scale(5), leadingPt: Math.round(scale(5) * 1.15), tracking: '-0.02em' },
-    { name: 'H1',      font: displayFont, weight: 'Bold',     sizePt: scale(4), leadingPt: Math.round(scale(4) * 1.2),  tracking: '-0.01em' },
-    { name: 'H2',      font: displayFont, weight: 'SemiBold', sizePt: scale(3), leadingPt: Math.round(scale(3) * 1.25), tracking: '0' },
-    { name: 'H3',      font: displayFont, weight: 'Medium',   sizePt: scale(2), leadingPt: Math.round(scale(2) * 1.3),  tracking: '0' },
-    { name: 'Body',    font: bodyFont,    weight: 'Regular',   sizePt: scale(0), leadingPt: Math.round(scale(0) * 1.5),  tracking: '0' },
-    { name: 'Caption', font: bodyFont,    weight: 'Regular',   sizePt: scale(-1), leadingPt: Math.round(scale(-1) * 1.4), tracking: '+0.02em' },
-    { name: 'Code',    font: monoFont,    weight: 'Regular',   sizePt: scale(-0.5), leadingPt: Math.round(scale(-0.5) * 1.5), tracking: '0' },
+    { name: 'Display', font: displayFont, weight: weightName(dBold),     sizePt: scale(5), leadingPt: Math.round(scale(5) * 1.15), tracking: '-0.02em' },
+    { name: 'H1',      font: displayFont, weight: weightName(dBold),     sizePt: scale(4), leadingPt: Math.round(scale(4) * 1.2),  tracking: '-0.01em' },
+    { name: 'H2',      font: displayFont, weight: weightName(dSemiBold), sizePt: scale(3), leadingPt: Math.round(scale(3) * 1.25), tracking: '0' },
+    { name: 'H3',      font: displayFont, weight: weightName(dMedium),   sizePt: scale(2), leadingPt: Math.round(scale(2) * 1.3),  tracking: '0' },
+    { name: 'Body',    font: bodyFont,    weight: weightName(bRegular),   sizePt: scale(0), leadingPt: Math.round(scale(0) * 1.5),  tracking: '0' },
+    { name: 'Caption', font: bodyFont,    weight: weightName(bRegular),   sizePt: scale(-1), leadingPt: Math.round(scale(-1) * 1.4), tracking: '+0.02em' },
+    { name: 'Code',    font: monoFont,    weight: weightName(mRegular),   sizePt: scale(-0.5), leadingPt: Math.round(scale(-0.5) * 1.5), tracking: '0' },
   ];
 }

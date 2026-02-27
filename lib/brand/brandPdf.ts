@@ -2,6 +2,7 @@ import { PDFDocument, rgb, PageSizes } from 'pdf-lib';
 import fontkitModule from '@pdf-lib/fontkit';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { BrandPalette } from './palette';
 import { BrandSignals } from './signals';
 import { TypeSystem } from './typographer';
@@ -9,16 +10,127 @@ import { ColorSystem } from './colorist';
 import { DesignBrief } from './strategist';
 import { FontPairing } from './typography';
 
+// ── Google Fonts download helper ────────────────────────────────────────────
+
+const FONT_CACHE_DIR = path.join(os.tmpdir(), 'sparkdomain-fonts');
+
+/** Download a Google Font TTF file (Regular weight) with caching */
+async function downloadGoogleFont(fontName: string, weight: number = 400): Promise<Buffer | null> {
+  try {
+    if (!fs.existsSync(FONT_CACHE_DIR)) fs.mkdirSync(FONT_CACHE_DIR, { recursive: true });
+
+    const cacheKey = `${fontName.replace(/\s/g, '-')}-${weight}.ttf`;
+    const cachePath = path.join(FONT_CACHE_DIR, cacheKey);
+
+    // Return from cache if available
+    if (fs.existsSync(cachePath)) return fs.readFileSync(cachePath);
+
+    // Fetch from Google Fonts CSS API (user-agent determines format)
+    const family = `${fontName.replace(/\s/g, '+')}:wght@${weight}`;
+    const cssUrl = `https://fonts.googleapis.com/css2?family=${family}&display=swap`;
+    const cssRes = await fetch(cssUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }, // Triggers .ttf URLs
+    });
+    if (!cssRes.ok) return null;
+
+    const css = await cssRes.text();
+    // Extract TTF URL from the CSS
+    const urlMatch = css.match(/url\((https:\/\/fonts\.gstatic\.com\/[^\)]+\.ttf)\)/);
+    if (!urlMatch) return null;
+
+    const fontRes = await fetch(urlMatch[1]);
+    if (!fontRes.ok) return null;
+
+    const buffer = Buffer.from(await fontRes.arrayBuffer());
+    fs.writeFileSync(cachePath, buffer);
+    return buffer;
+  } catch {
+    return null;
+  }
+}
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 type RGB = { r: number; g: number; b: number };
+
+// ── Aesthetic template system ────────────────────────────────────────────────
+
+type PdfTemplateId = 'minimal' | 'luxury' | 'organic' | 'technical' | 'default';
+
+interface PdfTemplate {
+  id: PdfTemplateId;
+  coverAccentStyle: 'stripe' | 'frame' | 'gradient-bar';
+  swatchBorderRadius: number;   // 0 = sharp, 4+ = rounded
+  sectionNumberStyle: 'plain' | 'circled' | 'none';
+  ornamentDivider: boolean;     // decorative dividers between sections
+  cardShadow: boolean;          // subtle shadow on card elements
+}
+
+const PDF_TEMPLATES: Record<PdfTemplateId, PdfTemplate> = {
+  minimal: {
+    id: 'minimal',
+    coverAccentStyle: 'stripe',
+    swatchBorderRadius: 0,
+    sectionNumberStyle: 'plain',
+    ornamentDivider: false,
+    cardShadow: false,
+  },
+  luxury: {
+    id: 'luxury',
+    coverAccentStyle: 'frame',
+    swatchBorderRadius: 2,
+    sectionNumberStyle: 'circled',
+    ornamentDivider: true,
+    cardShadow: true,
+  },
+  organic: {
+    id: 'organic',
+    coverAccentStyle: 'gradient-bar',
+    swatchBorderRadius: 6,
+    sectionNumberStyle: 'plain',
+    ornamentDivider: false,
+    cardShadow: true,
+  },
+  technical: {
+    id: 'technical',
+    coverAccentStyle: 'stripe',
+    swatchBorderRadius: 0,
+    sectionNumberStyle: 'plain',
+    ornamentDivider: false,
+    cardShadow: false,
+  },
+  default: {
+    id: 'default',
+    coverAccentStyle: 'stripe',
+    swatchBorderRadius: 3,
+    sectionNumberStyle: 'plain',
+    ornamentDivider: false,
+    cardShadow: false,
+  },
+};
+
+function selectPdfTemplate(brief?: DesignBrief): PdfTemplate {
+  if (!brief) return PDF_TEMPLATES.default;
+  const dir = brief.aestheticDirection.toLowerCase();
+
+  if (/minimal|swiss|nordic|clean/.test(dir)) return PDF_TEMPLATES.minimal;
+  if (/classical|luxury|heritage|editorial|refined|neo-classical/.test(dir)) return PDF_TEMPLATES.luxury;
+  if (/organic|warm|natural|soft|gentle/.test(dir)) return PDF_TEMPLATES.organic;
+  if (/terminal|brutal|tactical|dark|cyber|technical/.test(dir)) return PDF_TEMPLATES.technical;
+
+  return PDF_TEMPLATES.default;
+}
 
 interface PdfContext {
   pdfDoc: any;
   fontRegular: any;
   fontBold: any;
   fontLight: any;
+  brandDisplayFont: any;      // brand's display font (or fallback to fontBold)
+  brandDisplayFontRegular: any; // brand display at regular weight (or fallback)
+  brandBodyFont: any;         // brand's body font (or fallback to fontRegular)
   logoPng: any;
+  logoPngTransparent: any;  // for use on colored/dark backgrounds
   width: number;
   height: number;
   brandTitle: string;
@@ -32,6 +144,33 @@ interface PdfContext {
   lightGray: RGB;
   visPrimary: RGB;  // primary guaranteed to be visible (not near-white/black)
   useDarkTheme: boolean;
+  pageBg: RGB;     // themed page background (off-white for light, dark for dark)
+  pageFg: RGB;     // themed page text color
+  template: PdfTemplate;
+}
+
+// ── Sector-aware contact placeholders ────────────────────────────────────────
+
+interface SectorContact { name: string; title: string; email: string }
+
+const SECTOR_CONTACTS: { pattern: RegExp; contact: SectorContact }[] = [
+  { pattern: /food|restaurant|hospitality|cafe|coffee|bakery/i, contact: { name: 'Sofia Martinez', title: 'Head Chef', email: 'sofia' } },
+  { pattern: /tech|saas|ai|software|developer|platform/i, contact: { name: 'Alex Chen', title: 'CTO', email: 'alex' } },
+  { pattern: /creative|agency|design|studio|media/i, contact: { name: 'Lena Dahl', title: 'Creative Director', email: 'lena' } },
+  { pattern: /finance|legal|consulting|banking|invest/i, contact: { name: 'James Crawford', title: 'Managing Partner', email: 'james' } },
+  { pattern: /health|medical|wellness|bio|pharma/i, contact: { name: 'Dr. Maya Singh', title: 'Medical Director', email: 'maya' } },
+  { pattern: /education|learning|school|university/i, contact: { name: 'Rachel Torres', title: 'Program Director', email: 'rachel' } },
+  { pattern: /retail|commerce|shop|store|pet/i, contact: { name: 'Emma Wilson', title: 'Store Manager', email: 'emma' } },
+  { pattern: /luxury|fashion|beauty|premium/i, contact: { name: 'Isabelle Moreau', title: 'Brand Director', email: 'isabelle' } },
+];
+
+const DEFAULT_CONTACT: SectorContact = { name: 'Sam Morgan', title: 'Founder', email: 'sam' };
+
+function getSectorContact(sector: string): SectorContact {
+  for (const { pattern, contact } of SECTOR_CONTACTS) {
+    if (pattern.test(sector)) return contact;
+  }
+  return DEFAULT_CONTACT;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -134,7 +273,8 @@ export async function generateBrandPdf(
   fonts: FontPairing,
   brief?: DesignBrief,
   typeSystem?: TypeSystem,
-  colorSystem?: ColorSystem
+  colorSystem?: ColorSystem,
+  logoPngTransparentBuffer?: Buffer
 ): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkitModule as any);
@@ -144,6 +284,46 @@ export async function generateBrandPdf(
   const fontBold = await pdfDoc.embedFont(fs.readFileSync(path.join(fontDir, 'Inter-Bold.ttf')));
   const fontLight = await pdfDoc.embedFont(fs.readFileSync(path.join(fontDir, 'Inter-Light.ttf')));
   const logoPng = await pdfDoc.embedPng(logoPngBuffer);
+  // Embed transparent version for use on colored/dark backgrounds (falls back to regular)
+  let logoPngTransparent = logoPng;
+  if (logoPngTransparentBuffer) {
+    try {
+      logoPngTransparent = await pdfDoc.embedPng(logoPngTransparentBuffer);
+    } catch {
+      logoPngTransparent = logoPng; // fallback if transparent PNG fails
+    }
+  }
+
+  // Download and embed brand fonts (display + body) from Google Fonts
+  let brandDisplayFont = fontBold;
+  let brandDisplayFontRegular = fontRegular;
+  let brandBodyFont = fontRegular;
+  const useFonts = typeSystem || fonts;
+  try {
+    // Display font: try bold weight first, then the highest available
+    const displayName = useFonts.heading.name;
+    const displayWeights = useFonts.heading.weights;
+    const boldWeight = displayWeights.includes(700) ? 700 : displayWeights[displayWeights.length - 1] || 700;
+    const displayBuf = await downloadGoogleFont(displayName, boldWeight);
+    if (displayBuf) brandDisplayFont = await pdfDoc.embedFont(displayBuf);
+    // Also get regular weight for body-size display specimens
+    const regWeight = displayWeights.includes(400) ? 400 : displayWeights[0] || 400;
+    if (regWeight !== boldWeight) {
+      const displayRegBuf = await downloadGoogleFont(displayName, regWeight);
+      if (displayRegBuf) brandDisplayFontRegular = await pdfDoc.embedFont(displayRegBuf);
+    } else {
+      brandDisplayFontRegular = brandDisplayFont;
+    }
+
+    // Body font
+    const bodyName = useFonts.body.name;
+    const bodyWeights = useFonts.body.weights;
+    const bodyWeight = bodyWeights.includes(400) ? 400 : bodyWeights[0] || 400;
+    const bodyBuf = await downloadGoogleFont(bodyName, bodyWeight);
+    if (bodyBuf) brandBodyFont = await pdfDoc.embedFont(bodyBuf);
+  } catch (err: any) {
+    console.warn('Brand font download failed, using Inter fallback:', err.message);
+  }
 
   const page1 = pdfDoc.addPage(PageSizes.A4);
   const { width, height } = page1.getSize();
@@ -158,8 +338,31 @@ export async function generateBrandPdf(
   const visPrimaryLum = luminance(visPrimary);
   const useDarkTheme = brief?.themePreference === 'dark' || (brief?.themePreference !== 'light' && visPrimaryLum < 0.35);
 
+  // Select aesthetic template
+  const template = selectPdfTemplate(brief);
+
+  // Themed page background/foreground (template-aware)
+  let pageBg: RGB;
+  if (useDarkTheme) {
+    pageBg = colorSystem ? hexToRgb(colorSystem.system.background.hex) : { r: 0.04, g: 0.04, b: 0.04 };
+  } else if (template.id === 'luxury') {
+    pageBg = { r: 0.98, g: 0.97, b: 0.95 }; // warm cream #FAF7F2
+  } else if (template.id === 'organic') {
+    pageBg = { r: 0.99, g: 0.97, b: 0.94 }; // warm light #FDF8F0
+  } else if (template.id === 'technical') {
+    pageBg = { r: 0.04, g: 0.04, b: 0.04 }; // dark #0A0A0B
+  } else {
+    pageBg = { r: 0.97, g: 0.97, b: 0.98 }; // light neutral #F8F8FA
+  }
+  // Technical template forces dark foreground
+  const pageFg = (useDarkTheme || template.id === 'technical')
+    ? (colorSystem ? hexToRgb(colorSystem.system.foreground.hex) : { r: 0.93, g: 0.93, b: 0.95 })
+    : { r: 0.1, g: 0.1, b: 0.1 };
+
   const ctx: PdfContext = {
-    pdfDoc, fontRegular, fontBold, fontLight, logoPng,
+    pdfDoc, fontRegular, fontBold, fontLight,
+    brandDisplayFont, brandDisplayFontRegular, brandBodyFont,
+    logoPng, logoPngTransparent,
     width, height,
     brandTitle: brief?.brandName || domainName.charAt(0).toUpperCase() + domainName.slice(1),
     domainName,
@@ -172,9 +375,10 @@ export async function generateBrandPdf(
     lightGray: { r: 0.96, g: 0.96, b: 0.97 },
     visPrimary,
     useDarkTheme,
+    pageBg,
+    pageFg,
+    template,
   };
-
-  const useFonts = typeSystem || fonts;
 
   drawCoverPage(page1, ctx, brief);
   drawTocPage(ctx, brief);
@@ -182,7 +386,7 @@ export async function generateBrandPdf(
   drawLogoSystemPage(ctx);
   drawColorPalettePage(ctx, palette, colorSystem);
   drawTypographyPage(ctx, useFonts, signals, brief, typeSystem);
-  drawApplicationsPage(ctx, palette);
+  drawApplicationsPage(ctx, palette, brief);
   drawDosDontsPage(ctx, palette, brief);
 
   const pdfBytes = await pdfDoc.save();
@@ -192,13 +396,17 @@ export async function generateBrandPdf(
 // ── Page helpers ────────────────────────────────────────────────────────────
 
 function drawPageHeader(page: any, ctx: PdfContext, title: string, pageNum: number) {
-  const bgColor = ctx.useDarkTheme ? ctx.dark : ctx.visPrimary;
-  page.drawRectangle({ x: 0, y: ctx.height - 56, width: ctx.width, height: 56, color: c(bgColor) });
-  page.drawText(title.toUpperCase(), { x: 48, y: ctx.height - 38, size: 13, font: ctx.fontBold, color: c(ctx.white) });
-  // Accent underline
-  page.drawRectangle({ x: 48, y: ctx.height - 56, width: 60, height: 2.5, color: c(ctx.accent) });
+  // Themed page background
+  page.drawRectangle({ x: 0, y: 0, width: ctx.width, height: ctx.height, color: c(ctx.pageBg) });
+  // Subtle section tag with accent underline (replaces solid bar)
   const numStr = String(pageNum).padStart(2, '0');
-  page.drawText(numStr, { x: ctx.width - 60, y: ctx.height - 38, size: 14, font: ctx.fontLight, color: c(ctx.white), opacity: 0.5 });
+  const headerText = `${numStr} — ${title.toUpperCase()}`;
+  page.drawText(headerText, { x: 48, y: ctx.height - 42, size: 8, font: ctx.fontBold, color: c(ctx.pageFg), opacity: 0.6 });
+  // Thin accent underline
+  const headerW = Math.min(ctx.fontBold.widthOfTextAtSize(headerText, 8) + 8, 200);
+  page.drawRectangle({ x: 48, y: ctx.height - 47, width: headerW, height: 1.5, color: c(ctx.accent), opacity: 0.4 });
+  // Top accent line
+  page.drawRectangle({ x: 0, y: ctx.height - 3, width: ctx.width, height: 3, color: c(ctx.accent) });
 }
 
 function drawPageFooter(page: any, ctx: PdfContext, sectionName: string) {
@@ -218,57 +426,71 @@ function drawSectionLabel(page: any, ctx: PdfContext, label: string, x: number, 
 function drawCoverPage(page: any, ctx: PdfContext, brief?: DesignBrief) {
   const { width, height } = ctx;
 
-  if (ctx.useDarkTheme) {
+  if (ctx.useDarkTheme || ctx.template.id === 'technical') {
     // Dark theme: near-black background with accent elements
     page.drawRectangle({ x: 0, y: 0, width, height, color: c(ctx.dark) });
     // Accent stripe at top
-    page.drawRectangle({ x: 0, y: height - 6, width, height: 6, color: c(ctx.accent) });
+    page.drawRectangle({ x: 0, y: height - 4, width, height: 4, color: c(ctx.accent) });
     // Subtle vertical line
     page.drawRectangle({ x: Math.round(width * 0.75), y: 0, width: 1, height, color: c(ctx.accent), opacity: 0.08 });
+  } else if (ctx.template.id === 'luxury') {
+    // Luxury: warm background with border frame and accent accents
+    page.drawRectangle({ x: 0, y: 0, width, height, color: c(ctx.pageBg) });
+    // Inner border frame
+    const m = 28;
+    page.drawRectangle({ x: m, y: m, width: width - m * 2, height: height - m * 2, borderColor: c(ctx.accent), borderWidth: 0.5 });
+    // Ornamental accent line at top
+    page.drawRectangle({ x: width / 2 - 40, y: height - m - 16, width: 80, height: 1, color: c(ctx.accent), opacity: 0.6 });
   } else {
-    // Light/brand theme: primary color background with texture
+    // Light/brand theme: primary color background
     page.drawRectangle({ x: 0, y: 0, width, height, color: c(ctx.visPrimary) });
-    // Subtle diagonal accent
-    page.drawRectangle({ x: 0, y: height * 0.4, width, height: 1.5, color: c(ctx.white), opacity: 0.06 });
     // Accent stripe
-    page.drawRectangle({ x: 0, y: height - 6, width, height: 6, color: c(ctx.accent) });
+    page.drawRectangle({ x: 0, y: height - 4, width, height: 4, color: c(ctx.accent) });
   }
 
-  // Logo area — clean white card
-  const cardW = 180;
-  const cardH = 180;
-  const cardX = (width - cardW) / 2;
-  const cardY = height / 2 + 60;
-  page.drawRectangle({ x: cardX, y: cardY, width: cardW, height: cardH, color: c(ctx.white) });
-  const logoSize = 140;
-  page.drawImage(ctx.logoPng, { x: cardX + (cardW - logoSize) / 2, y: cardY + (cardH - logoSize) / 2, width: logoSize, height: logoSize });
+  // Logo area — use transparent logo directly on brand color (no white box)
+  const logoSize = 160;
+  const logoX = (width - logoSize) / 2;
+  const logoY = height / 2 + 80;
+  // Use logoPng on luxury (light bg), transparent on others
+  const coverLogo = ctx.template.id === 'luxury' ? ctx.logoPng : ctx.logoPngTransparent;
+  page.drawImage(coverLogo, { x: logoX, y: logoY, width: logoSize, height: logoSize });
 
-  // Brand name
+  // Cover text color: dark for luxury (light bg), white for everything else
+  const coverTextColor = ctx.template.id === 'luxury' ? ctx.dark : ctx.white;
+
+  // Brand name — use brand display font
   const titleSize = 38;
-  const titleW = ctx.fontBold.widthOfTextAtSize(ctx.brandTitle, titleSize);
+  const titleFont = ctx.brandDisplayFont;
+  const titleW = titleFont.widthOfTextAtSize(ctx.brandTitle, titleSize);
   const maxTitleW = width - 96;
   const actualTitleSize = titleW > maxTitleW ? titleSize * (maxTitleW / titleW) : titleSize;
-  const actualTitleW = ctx.fontBold.widthOfTextAtSize(ctx.brandTitle, actualTitleSize);
-  page.drawText(ctx.brandTitle, { x: (width - actualTitleW) / 2, y: cardY - 50, size: actualTitleSize, font: ctx.fontBold, color: c(ctx.white) });
+  const actualTitleW = titleFont.widthOfTextAtSize(ctx.brandTitle, actualTitleSize);
+  page.drawText(ctx.brandTitle, { x: (width - actualTitleW) / 2, y: logoY - 40, size: actualTitleSize, font: titleFont, color: c(coverTextColor) });
 
   // Subtitle
   const subtitle = 'Brand Identity Guidelines';
   const subW = ctx.fontLight.widthOfTextAtSize(subtitle, 13);
-  page.drawText(subtitle, { x: (width - subW) / 2, y: cardY - 72, size: 13, font: ctx.fontLight, color: c(ctx.white), opacity: 0.6 });
+  page.drawText(subtitle, { x: (width - subW) / 2, y: logoY - 62, size: 13, font: ctx.fontLight, color: c(coverTextColor), opacity: 0.6 });
 
   // Tagline
   if (brief?.tagline) {
     const tagW = ctx.fontRegular.widthOfTextAtSize(brief.tagline, 10);
     const maxTagW = width - 120;
     if (tagW <= maxTagW) {
-      page.drawText(brief.tagline, { x: (width - tagW) / 2, y: cardY - 95, size: 10, font: ctx.fontRegular, color: c(ctx.white), opacity: 0.4 });
+      page.drawText(brief.tagline, { x: (width - tagW) / 2, y: logoY - 85, size: 10, font: ctx.fontRegular, color: c(coverTextColor), opacity: 0.4 });
     }
   }
 
   // Bottom info
-  page.drawText(ctx.domainName, { x: 48, y: 28, size: 8, font: ctx.fontRegular, color: c(ctx.white), opacity: 0.4 });
+  page.drawText(ctx.domainName, { x: 48, y: 28, size: 8, font: ctx.fontRegular, color: c(coverTextColor), opacity: 0.4 });
   const year = new Date().getFullYear().toString();
-  page.drawText(`v1.0  ·  ${year}`, { x: width - 90, y: 28, size: 8, font: ctx.fontRegular, color: c(ctx.white), opacity: 0.4 });
+  page.drawText(`v1.0  ·  ${year}`, { x: width - 90, y: 28, size: 8, font: ctx.fontRegular, color: c(coverTextColor), opacity: 0.4 });
+
+  // Luxury template: ornamental divider below tagline
+  if (ctx.template.ornamentDivider) {
+    page.drawRectangle({ x: width / 2 - 30, y: logoY - 100, width: 60, height: 0.5, color: c(ctx.accent), opacity: 0.5 });
+  }
 }
 
 // ── Page 2: Table of Contents ───────────────────────────────────────────────
@@ -277,11 +499,11 @@ function drawTocPage(ctx: PdfContext, brief?: DesignBrief) {
   const page = ctx.pdfDoc.addPage(PageSizes.A4);
   const { width, height } = ctx;
 
-  page.drawRectangle({ x: 0, y: 0, width, height, color: c(ctx.white) });
+  page.drawRectangle({ x: 0, y: 0, width, height, color: c(ctx.pageBg) });
   // Top accent line
   page.drawRectangle({ x: 0, y: height - 3, width, height: 3, color: c(ctx.visPrimary) });
 
-  page.drawText('Contents', { x: 48, y: height - 80, size: 28, font: ctx.fontBold, color: c(ctx.dark) });
+  page.drawText('Contents', { x: 48, y: height - 80, size: 28, font: ctx.brandDisplayFont, color: c(ctx.pageFg) });
 
   const sections = [
     { num: '01', title: 'Brand Overview', desc: 'Mission, pillars, and personality' },
@@ -295,9 +517,9 @@ function drawTocPage(ctx: PdfContext, brief?: DesignBrief) {
   let y = height - 140;
   sections.forEach((s) => {
     page.drawText(s.num, { x: 48, y, size: 20, font: ctx.fontBold, color: c(ctx.accent), opacity: 0.4 });
-    page.drawText(s.title, { x: 95, y: y + 2, size: 13, font: ctx.fontBold, color: c(ctx.dark) });
-    page.drawText(s.desc, { x: 95, y: y - 15, size: 9, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
-    page.drawRectangle({ x: 48, y: y - 28, width: width - 96, height: 0.5, color: c(ctx.dark), opacity: 0.06 });
+    page.drawText(s.title, { x: 95, y: y + 2, size: 13, font: ctx.brandDisplayFont, color: c(ctx.pageFg) });
+    page.drawText(s.desc, { x: 95, y: y - 15, size: 9, font: ctx.fontRegular, color: c(ctx.pageFg), opacity: 0.5 });
+    page.drawRectangle({ x: 48, y: y - 28, width: width - 96, height: 0.5, color: c(ctx.pageFg), opacity: 0.06 });
     y -= 62;
   });
 
@@ -451,7 +673,9 @@ function drawLogoSystemPage(ctx: PdfContext) {
   variants.forEach((v, i) => {
     const vx = 48 + i * (variantW + 12);
     page.drawRectangle({ x: vx, y: y - variantH, width: variantW, height: variantH, color: c(v.bg) });
-    page.drawImage(ctx.logoPng, { x: vx + (variantW - lgSize) / 2, y: y - variantH + (variantH - lgSize) / 2, width: lgSize, height: lgSize });
+    // Use transparent logo on dark/brand backgrounds, regular on light
+    const logoImg = i === 0 ? ctx.logoPng : ctx.logoPngTransparent;
+    page.drawImage(logoImg, { x: vx + (variantW - lgSize) / 2, y: y - variantH + (variantH - lgSize) / 2, width: lgSize, height: lgSize });
     // Label below
     const labelColor = rgb(0.45, 0.45, 0.45);
     page.drawText(v.label, { x: vx, y: y - variantH - 14, size: 7, font: ctx.fontRegular, color: labelColor });
@@ -482,17 +706,49 @@ function drawLogoSystemPage(ctx: PdfContext) {
   y -= 14;
   page.drawText('Below 32px, use monogram variant for legibility.', { x: 48, y, size: 9, font: ctx.fontRegular, color: rgb(0.4, 0.4, 0.4) });
 
-  y -= 30;
+  y -= 24;
 
-  // Full-width brand color banner with logo centered
-  if (y > 160) {
-    const bannerH = 120;
-    page.drawRectangle({ x: 0, y: y - bannerH, width, height: bannerH, color: c(ctx.visPrimary) });
-    const bannerLogoSize = 70;
-    page.drawImage(ctx.logoPng, { x: (width - bannerLogoSize) / 2, y: y - bannerH + (bannerH - bannerLogoSize) / 2, width: bannerLogoSize, height: bannerLogoSize });
-    // Brand name under the logo in the banner
-    const brandNameW = ctx.fontBold.widthOfTextAtSize(ctx.brandTitle, 14);
-    page.drawText(ctx.brandTitle, { x: (width - brandNameW) / 2, y: y - bannerH + 14, size: 14, font: ctx.fontBold, color: c(ctx.white), opacity: 0.7 });
+  // Logo Size Comparison — show at different scales
+  if (y > 260) {
+    drawSectionLabel(page, ctx, 'Size Comparison', 48, y);
+    y -= 14;
+    const sizes = [
+      { px: 24, label: '24px' },
+      { px: 40, label: '40px' },
+      { px: 64, label: '64px' },
+      { px: 96, label: '96px' },
+    ];
+    let sx = 48;
+    sizes.forEach(({ px, label }) => {
+      const drawSize = Math.min(px, 96);
+      page.drawImage(ctx.logoPng, { x: sx, y: y - drawSize, width: drawSize, height: drawSize });
+      page.drawText(label, { x: sx + drawSize / 2 - 10, y: y - drawSize - 12, size: 7, font: ctx.fontRegular, color: c(ctx.pageFg), opacity: 0.5 });
+      sx += drawSize + 28;
+    });
+    y -= 120;
+  }
+
+  // Incorrect Usage — 4 mini-cards showing what NOT to do
+  if (y > 140) {
+    drawSectionLabel(page, ctx, 'Incorrect Usage', 48, y);
+    y -= 14;
+    const boxW = (contentW - 36) / 4;
+    const boxH = 60;
+    const violations = [
+      { label: 'No stretching', desc: 'Maintain aspect ratio' },
+      { label: 'No recoloring', desc: 'Use approved colors' },
+      { label: 'No low contrast', desc: 'Ensure legibility' },
+      { label: 'No effects', desc: 'No shadows or outlines' },
+    ];
+    violations.forEach((v, i) => {
+      const bx = 48 + i * (boxW + 12);
+      page.drawRectangle({ x: bx, y: y - boxH, width: boxW, height: boxH, color: c(ctx.pageBg) });
+      page.drawRectangle({ x: bx, y: y - boxH, width: boxW, height: boxH, borderColor: rgb(0.94, 0.27, 0.27), borderWidth: 0.5 });
+      // Red X
+      page.drawText('✕', { x: bx + boxW - 14, y: y - 14, size: 10, font: ctx.fontBold, color: rgb(0.94, 0.27, 0.27) });
+      page.drawText(v.label, { x: bx + 6, y: y - 16, size: 7, font: ctx.fontBold, color: c(ctx.pageFg) });
+      page.drawText(v.desc, { x: bx + 6, y: y - 30, size: 6, font: ctx.fontRegular, color: c(ctx.pageFg), opacity: 0.5 });
+    });
   }
 
   drawPageFooter(page, ctx, 'Logo System');
@@ -660,23 +916,23 @@ function drawTypographyPage(ctx: PdfContext, fonts: FontPairing, signals: BrandS
     { size: 13, label: 'H3' },
   ];
   headingSizes.forEach(({ size, label }) => {
-    drawTextSafe(page, ctx.brandTitle, { x: 48, y, size, font: ctx.fontBold, color: c(ctx.dark), maxWidth: maxTextW - 50 });
+    drawTextSafe(page, ctx.brandTitle, { x: 48, y, size, font: ctx.brandDisplayFont, color: c(ctx.dark), maxWidth: maxTextW - 50 });
     page.drawText(label, { x: width - 70, y: y + 2, size: 7, font: ctx.fontLight, color: rgb(0.55, 0.55, 0.55) });
     y -= size + 10;
   });
 
   y -= 8;
 
-  // Body Font
+  // Body Font — use brand body font for specimen
   if (y > 280) {
     drawSectionLabel(page, ctx, `Body — ${fonts.body.name}`, 48, y);
     y -= 20;
     const sampleText = brief
       ? `${ctx.brandTitle} operates in the ${brief.sectorClassification} space. The brand embodies "${brief.tensionPair}" — balancing precision with personality across every touchpoint.`
       : `${ctx.brandTitle} is built for the ${signals.industry} space. Every design decision reinforces the brand's position.`;
-    const bodyLines = wrapText(sampleText, ctx.fontRegular, 10, maxTextW);
+    const bodyLines = wrapText(sampleText, ctx.brandBodyFont, 10, maxTextW);
     bodyLines.slice(0, 4).forEach((line) => {
-      page.drawText(line, { x: 48, y, size: 10, font: ctx.fontRegular, color: c(ctx.dark) });
+      page.drawText(line, { x: 48, y, size: 10, font: ctx.brandBodyFont, color: c(ctx.dark) });
       y -= 15;
     });
     y -= 8;
@@ -743,7 +999,7 @@ function drawTypographyPage(ctx: PdfContext, fonts: FontPairing, signals: BrandS
 
 // ── Page 7: Applications ────────────────────────────────────────────────────
 
-function drawApplicationsPage(ctx: PdfContext, palette: BrandPalette) {
+function drawApplicationsPage(ctx: PdfContext, palette: BrandPalette, brief?: DesignBrief) {
   const page = ctx.pdfDoc.addPage(PageSizes.A4);
   const { width, height } = ctx;
   drawPageHeader(page, ctx, 'Applications', 5);
@@ -764,9 +1020,10 @@ function drawApplicationsPage(ctx: PdfContext, palette: BrandPalette) {
   page.drawRectangle({ x: 48, y: y, width: cardW, height: 3, color: c(ctx.accent) });
   const bcLogoSize = 32;
   page.drawImage(ctx.logoPng, { x: 64, y: y - 48, width: bcLogoSize, height: bcLogoSize });
-  drawTextSafe(page, ctx.brandTitle, { x: 64, y: y - 66, size: 10, font: ctx.fontBold, color: c(ctx.dark), maxWidth: cardW - 32 });
-  page.drawText('Your Name  ·  Title', { x: 64, y: y - 80, size: 7, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
-  page.drawText(`hello@${ctx.domainName}`, { x: 64, y: y - 94, size: 7, font: ctx.fontRegular, color: c(ctx.visPrimary) });
+  drawTextSafe(page, ctx.brandTitle, { x: 64, y: y - 66, size: 10, font: ctx.brandDisplayFont, color: c(ctx.dark), maxWidth: cardW - 32 });
+  const contact = getSectorContact(brief?.sectorClassification || '');
+  page.drawText(`${contact.name}  ·  ${contact.title}`, { x: 64, y: y - 80, size: 7, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
+  page.drawText(`${contact.email}@${ctx.domainName}`, { x: 64, y: y - 94, size: 7, font: ctx.fontRegular, color: c(ctx.visPrimary) });
 
   // Back
   const backX = 48 + cardW + 20;
@@ -799,6 +1056,52 @@ function drawApplicationsPage(ctx: PdfContext, palette: BrandPalette) {
     // Footer line
     page.drawRectangle({ x: lhX + 14, y: y - lhH + 18, width: lhW - 28, height: 0.5, color: c(ctx.visPrimary), opacity: 0.3 });
     page.drawText(`${ctx.domainName}`, { x: lhX + 14, y: y - lhH + 8, size: 6, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5) });
+    y -= lhH + 24;
+  }
+
+  // Additional collateral: email signature, social avatar, favicon
+  if (y > 180) {
+    const colW = (contentW - 24) / 3;
+
+    // Email Signature mockup
+    drawSectionLabel(page, ctx, 'Email Signature', 48, y);
+    const sigH = 60;
+    const sigY = y - 14;
+    page.drawRectangle({ x: 48, y: sigY - sigH, width: colW, height: sigH, color: c(ctx.white) });
+    page.drawRectangle({ x: 48, y: sigY - sigH, width: colW, height: sigH, borderColor: rgb(0.88, 0.88, 0.88), borderWidth: 0.3 });
+    page.drawRectangle({ x: 48, y: sigY, width: colW, height: 2, color: c(ctx.accent) });
+    const sigContact = getSectorContact(brief?.sectorClassification || '');
+    page.drawImage(ctx.logoPng, { x: 54, y: sigY - 24, width: 18, height: 18 });
+    page.drawText(sigContact.name, { x: 78, y: sigY - 14, size: 7, font: ctx.fontBold, color: c(ctx.dark) });
+    drawTextSafe(page, sigContact.title, { x: 78, y: sigY - 24, size: 6, font: ctx.fontRegular, color: rgb(0.5, 0.5, 0.5), maxWidth: colW - 36 });
+    page.drawText(`${sigContact.email}@${ctx.domainName}`, { x: 54, y: sigY - sigH + 10, size: 6, font: ctx.fontRegular, color: c(ctx.visPrimary) });
+
+    // Social Avatar (circle crop preview)
+    const avatarX = 48 + colW + 12;
+    drawSectionLabel(page, ctx, 'Social Avatar', avatarX, y);
+    const avatarSize = 48;
+    const avatarCenterX = avatarX + colW / 2;
+    const avatarCenterY = sigY - sigH / 2;
+    // Circle background
+    page.drawCircle({ x: avatarCenterX, y: avatarCenterY, size: avatarSize / 2, color: c(ctx.visPrimary) });
+    page.drawImage(ctx.logoPngTransparent, {
+      x: avatarCenterX - avatarSize * 0.35, y: avatarCenterY - avatarSize * 0.35,
+      width: avatarSize * 0.7, height: avatarSize * 0.7,
+    });
+    page.drawText('Profile picture', { x: avatarX, y: sigY - sigH - 12, size: 6, font: ctx.fontRegular, color: c(ctx.pageFg), opacity: 0.5 });
+
+    // Favicon Preview (multiple sizes)
+    const favX = avatarX + colW + 12;
+    drawSectionLabel(page, ctx, 'Favicon', favX, y);
+    const favSizes = [16, 24, 32, 48];
+    let fx = favX;
+    favSizes.forEach((sz) => {
+      const drawSz = Math.min(sz, 48);
+      page.drawRectangle({ x: fx, y: sigY - drawSz - 4, width: drawSz, height: drawSz, color: c(ctx.lightGray) });
+      page.drawImage(ctx.logoPng, { x: fx + 1, y: sigY - drawSz - 3, width: drawSz - 2, height: drawSz - 2 });
+      page.drawText(`${sz}px`, { x: fx, y: sigY - drawSz - 16, size: 5, font: ctx.fontRegular, color: c(ctx.pageFg), opacity: 0.5 });
+      fx += drawSz + 10;
+    });
   }
 
   drawPageFooter(page, ctx, 'Applications');

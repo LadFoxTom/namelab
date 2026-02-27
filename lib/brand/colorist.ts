@@ -163,48 +163,92 @@ function checkAccessibility(fg: string, bg: string, label: string): Accessibilit
   };
 }
 
+// ── Hue distance helper ──────────────────────────────────────────────────────
+
+function hueDist(h1: number, h2: number): number {
+  const d = Math.abs(h1 - h2);
+  return d > 180 ? 360 - d : d;
+}
+
+/** Derive a distinct accent from a primary by shifting hue ±30° */
+function deriveAccent(primaryHex: string, temperature: 'warm' | 'cool' | 'neutral'): string {
+  const { h, s, l } = hexToHsl(primaryHex);
+  const shift = temperature === 'cool' ? -30 : 30;
+  return hslToHex((h + shift + 360) % 360, s, l);
+}
+
+/** Ensure a hex color is usable (not near-white or near-black) */
+function ensureUsable(hex: string, ...fallbacks: (string | undefined)[]): string {
+  const lum = relativeLuminance(hex);
+  if (lum <= 0.85 && lum >= 0.03) return hex;
+  for (const fb of fallbacks) {
+    if (!fb) continue;
+    const fbLum = relativeLuminance(fb);
+    if (fbLum <= 0.85 && fbLum >= 0.03) return fb;
+  }
+  return hex; // give up
+}
+
 // ── Main colorist function ──────────────────────────────────────────────────
 
 export function buildColorSystem(brief: DesignBrief, imagePalette: BrandPalette, conceptPrimary?: string): ColorSystem {
-  // Fallback chain: conceptPrimary → brief.suggestedPrimaryHex → imagePalette.primary
-  let accentHex = brief.colorGuidance.suggestedPrimaryHex || imagePalette.primary;
+  // ── Step 1: Establish PRIMARY from the Strategist's recommendation ──
+  let primaryHex = brief.colorGuidance.suggestedPrimaryHex || imagePalette.primary;
 
-  // When a concept-specific primary is provided and usable, blend its hue with
-  // the brief-guided saturation/lightness so the palette adapts to each logo.
+  // When a concept-specific primary is provided and usable, adopt it only if
+  // it's in the same hue family as the Strategist's recommendation (±40°).
+  // This prevents a yellow turtle-shell from overriding a strategic teal.
   if (conceptPrimary) {
     const cpLum = relativeLuminance(conceptPrimary);
     if (cpLum <= 0.85 && cpLum >= 0.03) {
       const cpHsl = hexToHsl(conceptPrimary);
-      const briefHsl = hexToHsl(accentHex);
-      // Use the logo-extracted hue with the brief-guided saturation/lightness
-      accentHex = hslToHex(cpHsl.h, briefHsl.s || cpHsl.s, briefHsl.l || cpHsl.l);
+      const briefHsl = hexToHsl(primaryHex);
+      if (hueDist(cpHsl.h, briefHsl.h) <= 40) {
+        // Logo color is harmonious with strategy — adopt it
+        primaryHex = conceptPrimary;
+      }
+      // Otherwise keep the Strategist's recommendation
     }
   }
 
-  // Guard: if the suggested primary is near-white or near-black, it's unusable as a brand color.
-  // Fall back to the suggested accent, then image palette primary.
-  const lum = relativeLuminance(accentHex);
-  if (lum > 0.85 || lum < 0.03) {
-    accentHex = brief.colorGuidance.suggestedAccentHex || imagePalette.accent || imagePalette.primary;
-    // If the fallback is also too light/dark, synthesize from the accent hue range
-    const fallbackLum = relativeLuminance(accentHex);
-    if (fallbackLum > 0.85 || fallbackLum < 0.03) {
-      // Parse hue range like "140-170 green" and create a usable color
-      const hueMatch = brief.colorGuidance.accentHueRange?.match(/(\d+)/);
-      const fallbackHue = hueMatch ? parseInt(hueMatch[1]) : 220;
-      accentHex = hslToHex(fallbackHue, 65, 50);
-    }
+  // Guard: if primary is near-white or near-black, fall back
+  primaryHex = ensureUsable(
+    primaryHex,
+    brief.colorGuidance.suggestedAccentHex,
+    imagePalette.primary,
+    imagePalette.accent
+  );
+  const primaryLum = relativeLuminance(primaryHex);
+  if (primaryLum > 0.85 || primaryLum < 0.03) {
+    const hueMatch = brief.colorGuidance.accentHueRange?.match(/(\d+)/);
+    const fallbackHue = hueMatch ? parseInt(hueMatch[1]) : 220;
+    primaryHex = hslToHex(fallbackHue, 65, 50);
   }
 
+  // ── Step 2: Establish ACCENT as a distinct second color ──
+  let accentHex = brief.colorGuidance.suggestedAccentHex || imagePalette.accent || imagePalette.primary;
+
+  // Ensure accent is usable
+  accentHex = ensureUsable(accentHex, imagePalette.accent, imagePalette.primary);
+  const accentLum = relativeLuminance(accentHex);
+  if (accentLum > 0.85 || accentLum < 0.03) {
+    accentHex = deriveAccent(primaryHex, brief.colorGuidance.temperature);
+  }
+
+  // If accent is too similar to primary (hue distance < 15°), derive a distinct one
+  const primaryHsl = hexToHsl(primaryHex);
   const accentHsl = hexToHsl(accentHex);
+  if (hueDist(primaryHsl.h, accentHsl.h) < 15 && Math.abs(primaryHsl.l - accentHsl.l) < 10) {
+    accentHex = deriveAccent(primaryHex, brief.colorGuidance.temperature);
+  }
 
   const isDark = brief.themePreference === 'dark' ||
     (brief.themePreference === 'either' && isDarkPreferred(brief));
 
-  // Derive systematic palette from accent hue using HSL relationships
+  // Derive systematic palette from PRIMARY hue using HSL relationships
   const system = isDark
-    ? deriveDarkTheme(accentHsl)
-    : deriveLightTheme(accentHsl);
+    ? deriveDarkTheme(primaryHsl)
+    : deriveLightTheme(primaryHsl);
 
   // Functional colors — tuned to palette temperature
   const isWarm = brief.colorGuidance.temperature === 'warm';
@@ -220,19 +264,19 @@ export function buildColorSystem(brief: DesignBrief, imagePalette: BrandPalette,
     checkAccessibility(system.foreground.hex, system.background.hex, 'foreground/background'),
     checkAccessibility(system.foreground.hex, system.surface.hex, 'foreground/surface'),
     checkAccessibility(system.muted.hex, system.background.hex, 'muted/background'),
-    checkAccessibility(system.accent.hex, system.background.hex, 'accent/background'),
+    checkAccessibility(accentHex, system.background.hex, 'accent/background'),
   ];
 
   // Build backward-compatible BrandPalette
   const brand: BrandPalette = {
-    primary: accentHex,
+    primary: primaryHex,
     secondary: system.surface.hex,
-    accent: brief.colorGuidance.suggestedAccentHex || imagePalette.accent,
+    accent: accentHex,
     light: isDark ? system.foreground.hex : system.background.hex,
     dark: isDark ? system.background.hex : system.foreground.hex,
-    textOnPrimary: contrastRatio('#FFFFFF', accentHex) > contrastRatio('#000000', accentHex) ? '#FFFFFF' : '#000000',
+    textOnPrimary: contrastRatio('#FFFFFF', primaryHex) > contrastRatio('#000000', primaryHex) ? '#FFFFFF' : '#000000',
     textOnLight: isDark ? system.background.hex : system.foreground.hex,
-    cssVars: buildCssVars(accentHex, system, isDark),
+    cssVars: buildCssVars(primaryHex, accentHex, system, isDark),
   };
 
   // Proportions based on aesthetic density
@@ -293,13 +337,14 @@ function deriveLightTheme(accent: { h: number; s: number; l: number }) {
 
 function buildCssVars(
   primary: string,
+  accent: string,
   system: ColorSystem['system'],
   isDark: boolean
 ): string {
   return `
 :root {
   --brand-primary: ${primary};
-  --brand-accent: ${system.accent.hex};
+  --brand-accent: ${accent};
   --brand-background: ${system.background.hex};
   --brand-surface: ${system.surface.hex};
   --brand-foreground: ${system.foreground.hex};

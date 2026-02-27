@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
       businessCards = await generateBusinessCards(logoPngBuffer, finalPalette, session.domainName, brief);
       brandPdf = await generateBrandPdf(
         session.domainName, signals, logoPngBuffer, logoSvg, finalPalette, fonts,
-        brief, typeSystem, finalColorSystem
+        brief, typeSystem, finalColorSystem, logoPngTransparent
       );
     }
 

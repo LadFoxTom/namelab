@@ -293,11 +293,22 @@ async function main() {
     `Different concept palettes produce different brand primaries (${uniqueColors.size} unique)`,
     uniqueColors.size <= 1 ? `All concepts got "${[...uniqueColors][0]}"` : undefined);
 
-  // Verify that conceptPrimary actually shifts the color vs. without it
-  const csWithout = buildColorSystem(testBrief, conceptPalettes.mascot);
-  const csWith = buildColorSystem(testBrief, conceptPalettes.mascot, conceptPalettes.mascot.primary);
-  assert(csWithout.brand.primary !== csWith.brand.primary,
-    `conceptPrimary changes palette (without: ${csWithout.brand.primary}, with: ${csWith.brand.primary})`);
+  // Verify hue proximity guard: mascot orange (#E85D3A) is too far from brief's teal (#14B8A6),
+  // so conceptPrimary should be REJECTED (both produce the brief's color).
+  // But emblem teal-blue (#2E7D8C) IS within ±40° of brief teal, so it should be ADOPTED.
+  const csWithout = buildColorSystem(testBrief, conceptPalettes.emblem);
+  const csWith = buildColorSystem(testBrief, conceptPalettes.emblem, conceptPalettes.emblem.primary);
+  assert(csWith.brand.primary === conceptPalettes.emblem.primary,
+    `conceptPrimary adopted when hue-close (emblem: ${csWith.brand.primary} should be ${conceptPalettes.emblem.primary})`);
+
+  const csMascotWith = buildColorSystem(testBrief, conceptPalettes.mascot, conceptPalettes.mascot.primary);
+  const csMascotWithout = buildColorSystem(testBrief, conceptPalettes.mascot);
+  assert(csMascotWith.brand.primary === csMascotWithout.brand.primary,
+    `conceptPrimary rejected when hue-far (mascot: ${csMascotWith.brand.primary} kept strategist's ${csMascotWithout.brand.primary})`);
+
+  // Verify primary ≠ accent (Issue 8 fix)
+  assert(csWith.brand.primary !== csWith.brand.accent,
+    `Primary (${csWith.brand.primary}) differs from accent (${csWith.brand.accent})`);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // TEST 5: Per-concept social media background variation
