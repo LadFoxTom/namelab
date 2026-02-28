@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-const STALE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes — Inngest steps with retries can take a while
+const STALE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('sessionId');
@@ -21,21 +21,27 @@ export async function GET(req: NextRequest) {
       data: { status: 'FAILED', progress: null },
     });
 
-    return NextResponse.json({ status: 'FAILED', progress: null, signals: null, concepts: [] });
+    return NextResponse.json({ status: 'FAILED', progress: null, signals: null, designBrief: null, concepts: [] });
   }
+
+  // Extract designBrief from signals as soon as the strategist has written it
+  const rawSignals = session.signals as any;
+  const designBrief = rawSignals?.brief ?? null;
+
+  // Return concepts that have been saved so far, even during generation
+  const concepts = session.concepts.map(c => ({
+    id: c.id,
+    style: c.style,
+    previewUrl: c.previewUrl,
+    isSelected: c.isSelected,
+    score: c.score,
+  }));
 
   return NextResponse.json({
     status: session.status,
     progress: session.progress,
+    designBrief,
     signals: session.status === 'READY' ? session.signals : null,
-    concepts: session.status === 'READY'
-      ? session.concepts.map(c => ({
-          id: c.id,
-          style: c.style,
-          previewUrl: c.previewUrl,
-          isSelected: c.isSelected,
-          score: c.score,
-        }))
-      : [],
+    concepts,
   });
 }

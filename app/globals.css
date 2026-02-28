@@ -21,3 +21,59 @@
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
+
+/* Brand Studio — vertical column scroll animations */
+/* Each card is 140px tall + 16px gap = 156px. 6 cards = 936px per set. */
+@keyframes sparkdomain-scroll-up {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(calc(-1 * (140px + 16px) * 6)); }
+}
+
+@keyframes sparkdomain-scroll-down {
+  0% { transform: translateY(calc(-1 * (140px + 16px) * 6)); }
+  100% { transform: translateY(0); }
+}
+
+.sparkdomain-scroll-up {
+  animation: sparkdomain-scroll-up 30s linear infinite;
+}
+
+.sparkdomain-scroll-down {
+  animation: sparkdomain-scroll-down 30s linear infinite;
+}
+
+/* Brand Studio — responsive overrides */
+@media (max-width: 768px) {
+  .sparkdomain-hero-headline {
+    font-size: 36px !important;
+  }
+  .sparkdomain-input-group {
+    flex-direction: column !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    gap: 16px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+  .sparkdomain-hero-input {
+    width: 100% !important;
+    background: #FFFFFF !important;
+    border: 1px solid #E6E6E4 !important;
+    border-radius: 16px !important;
+    height: 64px !important;
+    text-align: center !important;
+  }
+  .sparkdomain-hero-button {
+    width: 100% !important;
+    border-radius: 16px !important;
+    height: 56px !important;
+  }
+  .sparkdomain-trust-row {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .sparkdomain-trust-dot {
+    display: none !important;
+  }
+}

@@ -2,8 +2,6 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
 import { BrandIdentityPanel } from '@/components/brand/BrandIdentityPanel';
 import Link from 'next/link';
 
@@ -13,6 +11,7 @@ function BrandDomainContent() {
   const domainName = decodeURIComponent(params.domain as string);
   const tld = searchParams.get('tld') || '.com';
   const existingSession = searchParams.get('session');
+  const autoStartParam = searchParams.get('autoStart');
 
   const [anonymousId, setAnonymousId] = useState('');
 
@@ -28,21 +27,21 @@ function BrandDomainContent() {
   if (!anonymousId) return null;
 
   return (
-    <>
+    <div className="max-w-4xl mx-auto px-6 py-8">
       <Link
         href="/brand"
-        className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-purple-600 transition-colors mb-6"
+        className="inline-flex items-center gap-1 text-sm text-[#A1A1AA] hover:text-[#7C3AED] transition-colors mb-6"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
         Brand Studio
       </Link>
-      <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-2">
-        Brand identity for <span className="text-purple-600">{domainName}{tld}</span>
+      <h1 className="text-2xl sm:text-4xl font-bold text-[#1A1A18] mb-2">
+        Brand identity for <span className="text-[#7C3AED]">{domainName}{tld}</span>
       </h1>
-      <p className="text-gray-500 text-sm mb-4">
-        Generate logos, color palettes, and a complete brand kit.
+      <p className="text-[#585854] text-sm mb-4">
+        AI-powered logo concepts, color system, typography, and production-ready files.
       </p>
       <BrandIdentityPanel
         domainName={domainName}
@@ -50,29 +49,20 @@ function BrandDomainContent() {
         searchQuery={domainName}
         anonymousId={anonymousId}
         initialSessionId={existingSession || undefined}
-        autoStart={!existingSession}
+        autoStart={!existingSession || autoStartParam === 'true'}
       />
-    </>
+    </div>
   );
 }
 
 export default function BrandDomainPage() {
   return (
-    <div className="bg-white text-gray-800 font-sans min-h-screen">
-      <Navbar />
-      <main className="pt-24 sm:pt-28 pb-16 sm:pb-24 px-4 sm:px-6 md:px-12 max-w-3xl mx-auto">
-        <Suspense fallback={
-          <div className="flex items-center justify-center py-12">
-            <svg className="animate-spin h-6 w-6 text-purple-500" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          </div>
-        }>
-          <BrandDomainContent />
-        </Suspense>
-      </main>
-      <Footer />
-    </div>
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-24">
+        <div className="w-6 h-6 border-2 border-[#7C3AED] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <BrandDomainContent />
+    </Suspense>
   );
 }
