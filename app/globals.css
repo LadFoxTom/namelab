@@ -58,25 +58,27 @@
   }
   .sparkdomain-input-group {
     flex-direction: column !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    gap: 16px !important;
-    padding: 0 !important;
-    border-radius: 0 !important;
+    background: #FFFFFF !important;
+    border: 1px solid #E6E6E4 !important;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02) !important;
+    gap: 0 !important;
+    padding: 16px !important;
+    border-radius: 20px !important;
   }
   .sparkdomain-hero-input {
     width: 100% !important;
-    background: #FFFFFF !important;
+    background: #FAFAF8 !important;
     border: 1px solid #E6E6E4 !important;
-    border-radius: 16px !important;
-    height: 64px !important;
+    border-radius: 12px !important;
+    height: 52px !important;
     text-align: center !important;
+    font-size: 15px !important;
+    margin-bottom: 12px !important;
   }
   .sparkdomain-hero-button {
     width: 100% !important;
-    border-radius: 16px !important;
-    height: 56px !important;
+    border-radius: 12px !important;
+    height: 52px !important;
   }
   .sparkdomain-trust-row {
     flex-direction: column !important;
