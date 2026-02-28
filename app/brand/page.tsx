@@ -98,14 +98,18 @@ function HeroSection() {
   return (
     <div className="flex flex-col items-center text-center max-w-[780px] mx-auto relative z-10">
       <h1
-        className="sparkdomain-hero-headline text-[52px] leading-[1.1] mb-5 text-[#1A1A18] font-bold"
+        className="sparkdomain-hero-headline text-[32px] sm:text-[42px] lg:text-[52px] leading-[1.1] mb-5 text-[#1A1A18] font-bold"
         style={{ letterSpacing: '-0.02em' }}
       >
-        Your brand identity,<br />from strategy to files,<br />in 60 seconds.
+        Your brand identity,{' '}
+        <span className="hidden sm:inline"><br /></span>
+        from strategy to files,{' '}
+        <span className="hidden sm:inline"><br /></span>
+        in 60 seconds.
       </h1>
 
-      <p className="text-[17px] text-[#585854] mb-8 max-w-[680px] font-normal leading-relaxed">
-        Enter your brand name. Get a brand strategy, 8 logo concepts,<br />a complete color system, typography, and 100+ production-ready files.
+      <p className="text-sm sm:text-[17px] text-[#585854] mb-8 max-w-[680px] font-normal leading-relaxed">
+        Enter your brand name. Get a brand strategy, 8 logo concepts, a complete color system, typography, and 100+ production-ready files.
       </p>
 
       <form onSubmit={handleSubmit} className="w-full max-w-[560px] mb-6">
@@ -124,18 +128,18 @@ function HeroSection() {
             onBlur={() => setIsFocused(false)}
             placeholder="Enter your brand or company name"
             aria-label="Brand Name"
-            className="sparkdomain-hero-input flex-1 border-none outline-none px-6 text-lg text-[#1A1A18] bg-transparent h-14 placeholder:text-[#A1A1AA]"
+            className="sparkdomain-hero-input flex-1 border-none outline-none px-4 sm:px-6 text-base sm:text-lg text-[#1A1A18] bg-transparent h-12 sm:h-14 placeholder:text-[#A1A1AA]"
           />
           <button
             type="submit"
-            className="sparkdomain-hero-button bg-[#7C3AED] hover:bg-[#6D28D9] text-white border-none rounded-[999px] h-14 px-8 text-base font-semibold cursor-pointer transition-colors whitespace-nowrap"
+            className="sparkdomain-hero-button bg-[#7C3AED] hover:bg-[#6D28D9] text-white border-none rounded-[999px] h-12 sm:h-14 px-5 sm:px-8 text-sm sm:text-base font-semibold cursor-pointer transition-colors whitespace-nowrap"
           >
             Generate brand &rarr;
           </button>
         </div>
       </form>
 
-      <div className="sparkdomain-trust-row flex items-center gap-6 text-sm text-[#585854]">
+      <div className="sparkdomain-trust-row flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-xs sm:text-sm text-[#585854]">
         <span>Free preview</span>
         <span className="sparkdomain-trust-dot w-1 h-1 bg-[#D4D4D8] rounded-full" />
         <span>No signup required</span>
@@ -162,7 +166,7 @@ function MyBrandsSection() {
   if (loading || brands.length === 0) return null;
 
   return (
-    <section className="max-w-[1200px] mx-auto px-6 mb-16">
+    <section className="max-w-[1200px] mx-auto px-4 sm:px-6 mb-16">
       <h2 className="text-xl font-semibold text-[#1A1A18] mb-6">My Brands</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {brands.map((brand: any) => (
@@ -211,7 +215,7 @@ export default function BrandStudioPage() {
           </div>
 
           {/* Center — Hero */}
-          <div className="flex-1 min-w-0 py-12">
+          <div className="flex-1 min-w-0 py-8 sm:py-12">
             <HeroSection />
           </div>
 

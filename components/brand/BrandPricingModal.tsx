@@ -57,7 +57,7 @@ export function BrandPricingModal({ sessionId, selectedConceptId, domainName, on
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl">
+      <div className="bg-white rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl">
         <div className="flex justify-between items-start mb-6">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Download your brand files</h2>

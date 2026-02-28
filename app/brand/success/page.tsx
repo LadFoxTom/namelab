@@ -35,7 +35,7 @@ function BrandSuccessContent() {
 
   if (error) {
     return (
-      <div className="text-center py-16 max-w-lg mx-auto px-6">
+      <div className="text-center py-8 sm:py-16 max-w-lg mx-auto px-4 sm:px-6">
         <h2 className="text-xl font-semibold text-[#1A1A18] mb-2">Something went wrong</h2>
         <p className="text-[#585854] text-sm">We could not find your purchase. Please contact support.</p>
       </div>
@@ -44,7 +44,7 @@ function BrandSuccessContent() {
 
   if (purchaseId) {
     return (
-      <div className="max-w-lg mx-auto px-6">
+      <div className="max-w-lg mx-auto px-4 sm:px-6">
         <BrandDownloadSuccess purchaseId={purchaseId} />
       </div>
     );

@@ -15,7 +15,7 @@ export function BrandLoadingState({ progress, onCancel }: BrandLoadingStateProps
   const currentIndex = STEPS.findIndex((s) => s.key === progress);
 
   return (
-    <div className="mt-8 border border-gray-100 rounded-2xl p-8">
+    <div className="mt-8 border border-gray-100 rounded-2xl p-4 sm:p-8">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
         <span className="text-sm font-medium text-gray-700">Generating brand identity...</span>

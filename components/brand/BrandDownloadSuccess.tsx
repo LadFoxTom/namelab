@@ -83,7 +83,7 @@ export function BrandDownloadSuccess({ purchaseId }: BrandDownloadSuccessProps) 
   }
 
   return (
-    <div className="py-16 max-w-lg mx-auto">
+    <div className="py-8 sm:py-16 max-w-lg mx-auto px-4 sm:px-0">
       {/* Header */}
       <div className="text-center mb-8">
         {status === 'ready' ? (
@@ -108,7 +108,7 @@ export function BrandDownloadSuccess({ purchaseId }: BrandDownloadSuccessProps) 
       </div>
 
       {/* Progress steps */}
-      <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6 mb-8">
+      <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6 mb-6 sm:mb-8">
         <div className="space-y-3">
           {STEPS.map((step, i) => {
             const isComplete = status === 'ready' || i < currentStep;

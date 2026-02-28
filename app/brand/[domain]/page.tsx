@@ -27,7 +27,7 @@ function BrandDomainContent() {
   if (!anonymousId) return null;
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <Link
         href="/brand"
         className="inline-flex items-center gap-1 text-sm text-[#A1A1AA] hover:text-[#7C3AED] transition-colors mb-6"

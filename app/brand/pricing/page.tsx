@@ -32,16 +32,16 @@ const FAQ = [
 
 export default function PricingPage() {
   return (
-    <div className="h-[calc(100vh-80px)] flex items-center justify-center px-6">
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 sm:px-6 py-8 sm:py-0">
       <div className="w-full max-w-[960px]">
         {/* Two-column: Pricing + FAQ */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-start">
           {/* Pricing Card */}
-          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6">
+          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6">
             <div className="text-center mb-5">
               <span className="text-[11px] font-semibold text-[#7C3AED] uppercase tracking-wider">Brand Kit</span>
               <div className="mt-1 flex items-baseline justify-center gap-1">
-                <span className="text-[44px] font-bold text-[#1A1A18]" style={{ letterSpacing: '-0.02em' }}>
+                <span className="text-3xl sm:text-[44px] font-bold text-[#1A1A18]" style={{ letterSpacing: '-0.02em' }}>
                   &euro;24.99
                 </span>
               </div>

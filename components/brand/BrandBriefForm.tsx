@@ -142,7 +142,7 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
   /* ── Summary review card ── */
   if (showSummary && mode === 'custom') {
     return (
-      <div className="mt-8 rounded-2xl border border-[#E6E6E4] bg-white p-6">
+      <div className="mt-8 rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6">
         <h3 className="text-lg font-semibold text-[#1A1A18] mb-4">Review your brief</h3>
         <div className="space-y-3 text-sm">
           <SummaryRow label="Brand" value={`${domainName}${tld}`} />
@@ -216,7 +216,7 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
       </div>
 
       {/* Brand name display */}
-      <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6">
+      <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6">
         <div className="mb-1">
           <span className="text-sm font-medium text-[#585854]">Brand name</span>
         </div>
@@ -224,7 +224,7 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
       </div>
 
       {/* Business description — shared between both modes */}
-      <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6">
+      <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6">
         <label className="block text-sm font-medium text-[#1A1A18] mb-2">
           What does your business do?
         </label>
@@ -260,7 +260,7 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
       {mode === 'custom' && (
         <>
           {/* Logo description */}
-          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6">
+          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6">
             <label className="block text-sm font-medium text-[#1A1A18] mb-2">
               Logo idea <span className="text-[#A1A1AA] font-normal">(optional)</span>
             </label>
@@ -274,7 +274,7 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
           </div>
 
           {/* Personality sliders */}
-          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6">
+          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6">
             <label className="block text-sm font-medium text-[#1A1A18] mb-4">Brand personality</label>
             <div className="space-y-4">
               {PERSONALITY_SPECTRUMS.map((spectrum) => (
@@ -305,9 +305,9 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
           </div>
 
           {/* Font mood tiles */}
-          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6">
+          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6">
             <label className="block text-sm font-medium text-[#1A1A18] mb-3">Font mood</label>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
               {FONT_MOODS.map((mood) => (
                 <button
                   key={mood.id}
@@ -331,9 +331,9 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
           </div>
 
           {/* Color palette picker */}
-          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6">
+          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6">
             <label className="block text-sm font-medium text-[#1A1A18] mb-3">Color palette</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {COLOR_PALETTES.map((palette) => (
                 <button
                   key={palette.name}
@@ -367,7 +367,7 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
           </div>
 
           {/* Colors to avoid */}
-          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6">
+          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6">
             <label className="block text-sm font-medium text-[#1A1A18] mb-2">
               Colors to avoid <span className="text-[#A1A1AA] font-normal">(optional)</span>
             </label>
@@ -381,7 +381,7 @@ export function BrandBriefForm({ domainName, tld, searchQuery, onSubmit, onBack 
           </div>
 
           {/* Logo styles */}
-          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6">
+          <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6">
             <label className="block text-sm font-medium text-[#1A1A18] mb-3">Logo styles to generate</label>
             <div className="flex flex-wrap gap-2">
               {LOGO_STYLES.map((s) => (

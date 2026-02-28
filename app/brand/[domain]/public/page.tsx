@@ -33,17 +33,17 @@ export default async function PublicBrandPage({ params }: Props) {
   const selectedConcept = session.concepts[0];
 
   return (
-    <div className="max-w-[800px] mx-auto px-6 py-12">
+    <div className="max-w-[800px] mx-auto px-4 sm:px-6 py-8 sm:py-12">
       {/* Header */}
-      <div className="text-center mb-12">
+      <div className="text-center mb-8 sm:mb-12">
         {selectedConcept && (
           <img
             src={selectedConcept.previewUrl}
             alt={`${session.domainName} logo`}
-            className="w-32 h-32 object-contain mx-auto mb-4"
+            className="w-24 h-24 sm:w-32 sm:h-32 object-contain mx-auto mb-4"
           />
         )}
-        <h1 className="text-3xl font-bold text-[#1A1A18]">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1A18]">
           {session.domainName}{session.tld}
         </h1>
         {brief?.tensionPair && (
@@ -53,7 +53,7 @@ export default async function PublicBrandPage({ params }: Props) {
 
       {/* Strategy */}
       {brief && (
-        <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6 mb-6">
+        <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6 mb-6">
           <h2 className="text-lg font-semibold text-[#1A1A18] mb-4">Brand Strategy</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {brief.sectorClassification && (
@@ -86,12 +86,12 @@ export default async function PublicBrandPage({ params }: Props) {
 
       {/* Color Palette */}
       {colorGuidance?.suggestedPrimaryHex && (
-        <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6 mb-6">
+        <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6 mb-6">
           <h2 className="text-lg font-semibold text-[#1A1A18] mb-4">Color Palette</h2>
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3 flex-wrap">
             <div className="flex flex-col items-center gap-1">
               <div
-                className="w-20 h-20 rounded-xl border border-[#E6E6E4]"
+                className="w-14 h-14 sm:w-20 sm:h-20 rounded-xl border border-[#E6E6E4]"
                 style={{ backgroundColor: colorGuidance.suggestedPrimaryHex }}
               />
               <span className="text-[10px] font-mono text-[#585854]">{colorGuidance.suggestedPrimaryHex}</span>
@@ -99,7 +99,7 @@ export default async function PublicBrandPage({ params }: Props) {
             {colorGuidance.palette?.map((hex: string, i: number) => (
               <div key={i} className="flex flex-col items-center gap-1">
                 <div
-                  className="w-20 h-20 rounded-xl border border-[#E6E6E4]"
+                  className="w-14 h-14 sm:w-20 sm:h-20 rounded-xl border border-[#E6E6E4]"
                   style={{ backgroundColor: hex }}
                 />
                 <span className="text-[10px] font-mono text-[#585854]">{hex}</span>
@@ -111,7 +111,7 @@ export default async function PublicBrandPage({ params }: Props) {
 
       {/* Typography */}
       {typographyGuidance && (
-        <div className="rounded-2xl border border-[#E6E6E4] bg-white p-6 mb-6">
+        <div className="rounded-2xl border border-[#E6E6E4] bg-white p-4 sm:p-6 mb-6">
           <h2 className="text-lg font-semibold text-[#1A1A18] mb-4">Typography</h2>
           {typographyGuidance.displayFont && (
             <div className="mb-3">

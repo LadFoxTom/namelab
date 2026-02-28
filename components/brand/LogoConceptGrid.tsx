@@ -375,12 +375,12 @@ export function LogoConceptGrid({
               </svg>
             </button>
 
-            <div className="grid grid-cols-6 border-b border-[#E6E6E4] pt-3">
+            <div className="flex overflow-x-auto border-b border-[#E6E6E4] pt-3 scrollbar-hide">
               {MOCKUP_TABS.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`py-2 text-xs font-medium text-center border-b-2 transition-colors ${
+                  className={`flex-shrink-0 px-3 sm:px-4 py-2 text-xs font-medium text-center border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === tab.key
                       ? 'border-[#7C3AED] text-[#7C3AED]'
                       : 'border-transparent text-[#585854] hover:text-[#1A1A18]'
@@ -391,7 +391,7 @@ export function LogoConceptGrid({
               ))}
             </div>
 
-            <div className="bg-[#FAFAF8] p-6 min-h-[300px] flex items-center justify-center">
+            <div className="bg-[#FAFAF8] p-4 sm:p-6 min-h-[250px] sm:min-h-[300px] flex items-center justify-center">
               {activeTab === 'logo' ? (
                 <img
                   src={lightboxConcept.previewUrl}
@@ -414,7 +414,7 @@ export function LogoConceptGrid({
               )}
             </div>
 
-            <div className="px-5 py-3 flex items-center justify-between border-t border-[#E6E6E4]">
+            <div className="px-4 sm:px-5 py-3 flex items-center justify-between border-t border-[#E6E6E4]">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-[#1A1A18]">
                   {STYLE_LABELS[lightboxConcept.style] || lightboxConcept.style}

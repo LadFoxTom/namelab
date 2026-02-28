@@ -20,7 +20,7 @@ function GalleryCard({ item }: { item: GalleryItem }) {
   return (
     <Link
       href={`/brand/gallery/${item.sessionId}`}
-      className="w-[200px] h-[140px] bg-white rounded-2xl border border-[#E6E6E4] flex items-center justify-center flex-shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_16px_rgba(0,0,0,0.04)] hover:border-[#D4D4D8] transition-all duration-200 no-underline"
+      className="w-full lg:w-[200px] h-[140px] bg-white rounded-2xl border border-[#E6E6E4] flex items-center justify-center flex-shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_16px_rgba(0,0,0,0.04)] hover:border-[#D4D4D8] transition-all duration-200 no-underline"
     >
       <div className="flex flex-col items-center gap-2.5">
         {item.topConcept?.previewUrl ? (
@@ -52,7 +52,7 @@ function GalleryCard({ item }: { item: GalleryItem }) {
 
 function PlaceholderCard({ name, letter, color, style }: { name: string; letter: string; color: string; style: string }) {
   return (
-    <div className="w-[200px] h-[140px] bg-white rounded-2xl border border-[#E6E6E4] flex items-center justify-center flex-shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+    <div className="w-full lg:w-[200px] h-[140px] bg-white rounded-2xl border border-[#E6E6E4] flex items-center justify-center flex-shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
       <div className="flex flex-col items-center gap-2.5">
         <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
           <rect width="44" height="44" rx="10" fill={color} />
@@ -155,12 +155,12 @@ export default function GalleryPage() {
       {/* Header */}
       <div className="text-center mb-8">
         <h1
-          className="text-[40px] font-bold text-[#1A1A18] mb-2"
+          className="text-2xl sm:text-[32px] lg:text-[40px] font-bold text-[#1A1A18] mb-2"
           style={{ letterSpacing: '-0.02em' }}
         >
           Brand Gallery
         </h1>
-        <p className="text-[17px] text-[#585854]">
+        <p className="text-sm sm:text-[17px] text-[#585854]">
           Explore brand identities created by our community
         </p>
       </div>
