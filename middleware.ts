@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(req: NextRequest) {
   const hostname = req.headers.get('host')?.split(':')[0] ?? '';
-  const brandDomain = process.env.BRAND_DOMAIN;
+  const brandDomain = process.env.BRAND_DOMAIN?.trim();
 
   if (!brandDomain || hostname !== brandDomain) {
     return NextResponse.next();
