@@ -132,7 +132,7 @@ export default async function PublicBrandPage({ params }: Props) {
       {/* CTA */}
       <div className="text-center mt-8">
         <p className="text-sm text-[#585854] mb-3">
-          Built with Sparkdomain &middot; AI-powered brand identity
+          Built with BrandKitz &middot; AI-powered brand identity
         </p>
         <a
           href="/brand"

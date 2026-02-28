@@ -16,7 +16,7 @@ function BrandNav() {
         style={{ letterSpacing: '-0.02em' }}
       >
         <div className="w-6 h-6 bg-[#7C3AED] rounded-md flex-shrink-0" />
-        Sparkdomain
+        BrandKitz
       </Link>
 
       {/* Desktop nav */}
@@ -101,7 +101,7 @@ function BrandFooter() {
   return (
     <footer className="border-t border-[#E6E6E4] py-6 sm:py-8 mt-16">
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 flex items-center justify-between text-xs text-[#585854]">
-        <span>&copy; {new Date().getFullYear()} Sparkdomain</span>
+        <span>&copy; {new Date().getFullYear()} BrandKitz</span>
         <div className="flex gap-4 sm:gap-6">
           <Link href="/brand" className="hover:text-[#1A1A18] transition-colors">Terms</Link>
           <Link href="/brand" className="hover:text-[#1A1A18] transition-colors">Privacy</Link>

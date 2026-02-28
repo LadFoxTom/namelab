@@ -6,7 +6,7 @@ export async function applyWatermark(imageBuffer: Buffer): Promise<Buffer> {
   const height = 400;
 
   // Build rotated text paths using opentype.js (avoids system font dependency)
-  const mainText = textToPathElement('SPARKDOMAIN PREVIEW', width / 2, height / 2, 18, 'rgba(0,0,0,0.35)', { weight: 'bold', anchor: 'middle' });
+  const mainText = textToPathElement('BRANDKITZ PREVIEW', width / 2, height / 2, 18, 'rgba(0,0,0,0.35)', { weight: 'bold', anchor: 'middle' });
   const subText = textToPathElement('Not for commercial use', width / 2, height * 0.65, 12, 'rgba(0,0,0,0.25)', { weight: 'regular', anchor: 'middle' });
 
   const watermarkSvg = `

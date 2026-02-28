@@ -155,7 +155,7 @@ export const generateBrandAssets = inngest.createFunction(
                 Download your files
               </a>
               <p style="color: #999; font-size: 12px;">This link expires in 7 days. After that, reply to this email and we'll regenerate it.</p>
-              <p style="color: #999; font-size: 12px;">Sparkdomain</p>
+              <p style="color: #999; font-size: 12px;">BrandKitz</p>
             </div>
           `,
         })
