@@ -1,6 +1,4 @@
 import sharp from 'sharp';
-import path from 'path';
-import fs from 'fs';
 import { BrandPalette } from './palette';
 import { BrandSignals } from './signals';
 import { SocialStrategy } from './socialDirector';
@@ -210,14 +208,7 @@ function selectBgByStrategy(
 
 // ── Text overlay rendering ──────────────────────────────────────────────────
 
-let _socialFontBase64: string | null = null;
-function getInterBoldBase64(): string {
-  if (!_socialFontBase64) {
-    const fontPath = path.join(process.cwd(), 'lib/brand/fonts/Inter-Bold.ttf');
-    _socialFontBase64 = fs.readFileSync(fontPath).toString('base64');
-  }
-  return _socialFontBase64;
-}
+import { textToPathElement } from './textRenderer';
 
 async function renderTextOverlay(
   bgBuffer: Buffer, w: number, h: number,
@@ -226,33 +217,25 @@ async function renderTextOverlay(
   if (!text) return bgBuffer;
 
   const fontSize = Math.max(14, Math.round(Math.min(w, h) * 0.04));
-  const fontBase64 = getInterBoldBase64();
   const textColor = hexLuminance(palette.dark) < 0.5 ? palette.light : palette.dark;
   const transform = textStyle === 'caps' ? text.toUpperCase() : text;
-  const letterSpacing = textStyle === 'caps' ? ' letter-spacing="0.08em"' : '';
-  const fontWeight = textStyle === 'light' ? '400' : '700';
+  const weight: 'bold' | 'regular' = textStyle === 'light' ? 'regular' : 'bold';
 
-  let x: string, y: number, anchor: string;
+  let xPos: number, yPos: number, anchor: 'start' | 'middle' | 'end';
   switch (placement) {
     case 'center':
-      x = '50%'; y = Math.round(h * 0.88); anchor = 'middle'; break;
+      xPos = Math.round(w / 2); yPos = Math.round(h * 0.88); anchor = 'middle'; break;
     case 'bottom-center':
-      x = '50%'; y = Math.round(h * 0.92); anchor = 'middle'; break;
+      xPos = Math.round(w / 2); yPos = Math.round(h * 0.92); anchor = 'middle'; break;
     default: // bottom-left
-      x = `${Math.round(w * 0.06)}`; y = Math.round(h * 0.90); anchor = 'start'; break;
+      xPos = Math.round(w * 0.06); yPos = Math.round(h * 0.90); anchor = 'start'; break;
   }
 
+  const pathEl = textToPathElement(transform, xPos, yPos, fontSize, textColor, { weight, anchor });
   const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-  <defs>
-    <style>@font-face { font-family: "InterOverlay"; src: url(data:font/truetype;base64,${fontBase64}); }</style>
-  </defs>
-  <text x="${x}" y="${y}" text-anchor="${anchor}"
-    font-family="InterOverlay" font-size="${fontSize}" font-weight="${fontWeight}"
-    fill="${textColor}" fill-opacity="0.85"${letterSpacing}>${escapeXml(transform)}</text>
+  ${pathEl}
 </svg>`;
 
-  // Pre-render the overlay SVG to PNG first — Sharp can't resolve @font-face data URIs
-  // in SVG overlays, so we rasterize to PNG buffer, then composite.
   const overlayPng = await sharp(Buffer.from(overlaySvg))
     .resize(w, h)
     .png()

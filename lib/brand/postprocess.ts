@@ -1,17 +1,6 @@
 import { fal } from '@fal-ai/client';
 import sharp from 'sharp';
-import path from 'path';
-import fs from 'fs';
-
-// Cache the embedded font for SVG text rendering (Sharp can't access system fonts)
-let _fontBase64: string | null = null;
-function getInterBoldBase64(): string {
-  if (!_fontBase64) {
-    const fontPath = path.join(process.cwd(), 'lib/brand/fonts/Inter-Bold.ttf');
-    _fontBase64 = fs.readFileSync(fontPath).toString('base64');
-  }
-  return _fontBase64;
-}
+import { renderTextToPng } from './textRenderer';
 
 fal.config({ credentials: process.env.FAL_KEY! });
 
@@ -200,11 +189,7 @@ export async function removeWhiteBackground(imageBuffer: Buffer, threshold = 240
   }).png().toBuffer();
 }
 
-function escXml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/** Render brand name text as a PNG buffer using embedded Inter Bold font */
+/** Render brand name text as a PNG buffer using opentype.js path rendering */
 async function renderBrandText(
   brandName: string,
   color: string,
@@ -212,22 +197,7 @@ async function renderBrandText(
   height: number,
   fontSize: number
 ): Promise<Buffer> {
-  const fontB64 = getInterBoldBase64();
-  const textSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-  <defs>
-    <style>
-      @font-face {
-        font-family: 'InterBrand';
-        src: url('data:font/truetype;base64,${fontB64}');
-      }
-    </style>
-  </defs>
-  <text x="${width / 2}" y="${height * 0.72}"
-    font-family="InterBrand" font-size="${fontSize}" font-weight="700"
-    fill="${color}" text-anchor="middle">${escXml(brandName)}</text>
-</svg>`;
-
-  return sharp(Buffer.from(textSvg)).resize(width, height).png().toBuffer();
+  return renderTextToPng(brandName, color, width, height, fontSize);
 }
 
 /**

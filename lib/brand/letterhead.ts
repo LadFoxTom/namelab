@@ -5,6 +5,7 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import fontkitModule from '@pdf-lib/fontkit';
 import { BrandPalette } from './palette';
 import { DesignBrief } from './strategist';
+import { buildTextSvg } from './textRenderer';
 
 export interface LetterheadAsset {
   filename: string;
@@ -22,24 +23,6 @@ const PDF_LH_H = 792;
 // No. 10 Envelope: 9.5" × 4.125" = 684 × 297 pt
 const ENV_W = 684;
 const ENV_H = 297;
-
-let _fontBoldBase64: string | null = null;
-function getInterBoldBase64(): string {
-  if (!_fontBoldBase64) {
-    const fontPath = path.join(process.cwd(), 'lib/brand/fonts/Inter-Bold.ttf');
-    _fontBoldBase64 = fs.readFileSync(fontPath).toString('base64');
-  }
-  return _fontBoldBase64;
-}
-
-let _fontRegularBase64: string | null = null;
-function getInterRegularBase64(): string {
-  if (!_fontRegularBase64) {
-    const fontPath = path.join(process.cwd(), 'lib/brand/fonts/Inter-Regular.ttf');
-    _fontRegularBase64 = fs.readFileSync(fontPath).toString('base64');
-  }
-  return _fontRegularBase64;
-}
 
 function hexToRgbValues(hex: string): { r: number; g: number; b: number } {
   return {
@@ -77,12 +60,10 @@ export async function generateLetterhead(
   const assets: LetterheadAsset[] = [];
 
   // ── Letterhead PNG ─────────────────────────────────────────────────────────
-  const boldBase64 = getInterBoldBase64();
-  const regularBase64 = getInterRegularBase64();
-
   const bgSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${LH_W}" height="${LH_H}">
   <rect width="${LH_W}" height="${LH_H}" fill="white"/>
   <rect x="0" y="0" width="${LH_W}" height="20" fill="${visPrimary}"/>
+  <line x1="150" y1="3100" x2="2400" y2="3100" stroke="${visPrimary}" stroke-width="2" opacity="0.3"/>
 </svg>`;
 
   const bgBuffer = await sharp(Buffer.from(bgSvg)).png().toBuffer();
@@ -93,18 +74,12 @@ export async function generateLetterhead(
     .png()
     .toBuffer();
 
-  const textSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${LH_W}" height="${LH_H}">
-  <defs>
-    <style>
-      @font-face { font-family: "InterBold"; src: url(data:font/truetype;base64,${boldBase64}); }
-      @font-face { font-family: "InterRegular"; src: url(data:font/truetype;base64,${regularBase64}); }
-    </style>
-  </defs>
-  <text x="360" y="190" font-family="InterBold" font-size="56" font-weight="700" fill="${palette.dark}">${escapeXml(brandName)}</text>
-  <line x1="150" y1="3100" x2="2400" y2="3100" stroke="${visPrimary}" stroke-width="2" opacity="0.3"/>
-  <text x="150" y="3160" font-family="InterRegular" font-size="28" fill="#9CA3AF">${escapeXml(domainName)}.com</text>
-  <text x="2400" y="3160" font-family="InterRegular" font-size="28" fill="#9CA3AF" text-anchor="end">hello@${escapeXml(domainName)}.com</text>
-</svg>`;
+  // Text overlay using opentype.js path rendering (no @font-face needed)
+  const textSvg = buildTextSvg(LH_W, LH_H, [
+    { text: brandName, x: 360, y: 190, fontSize: 56, color: palette.dark, weight: 'bold' },
+    { text: `${domainName}.com`, x: 150, y: 3160, fontSize: 28, color: '#9CA3AF', weight: 'regular' },
+    { text: `hello@${domainName}.com`, x: 2400, y: 3160, fontSize: 28, color: '#9CA3AF', weight: 'regular', anchor: 'end' },
+  ]);
 
   const textPng = await sharp(Buffer.from(textSvg)).resize(LH_W, LH_H).png().toBuffer();
 

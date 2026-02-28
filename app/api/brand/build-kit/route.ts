@@ -66,8 +66,11 @@ export async function POST(req: NextRequest) {
     try {
       logoSvg = await vectorizeToSvg(logoPngBuffer);
     } catch {
-      console.warn('SVG vectorization failed, using placeholder');
-      logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><text x="50%" y="50%" text-anchor="middle" font-size="48">${session.domainName}</text></svg>`;
+      console.warn('SVG vectorization failed, using PNG-embedded SVG fallback');
+      // Embed the raster PNG as base64 inside an SVG instead of using <text>
+      // which requires system fonts and renders as tofu on font-less servers
+      const pngBase64 = logoPngBuffer.toString('base64');
+      logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512"><image width="512" height="512" xlink:href="data:image/png;base64,${pngBase64}" /></svg>`;
     }
 
     // 4b. Generate transparent-background variant

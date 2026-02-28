@@ -5,6 +5,7 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import fontkitModule from '@pdf-lib/fontkit';
 import { BrandPalette } from './palette';
 import { DesignBrief } from './strategist';
+import { buildTextSvg } from './textRenderer';
 
 export interface BusinessCardAsset {
   filename: string;
@@ -18,24 +19,6 @@ const CARD_H = 600;
 // PDF points: 3.5" × 2" = 252 × 144 pt
 const PDF_W = 252;
 const PDF_H = 144;
-
-let _fontBase64: string | null = null;
-function getInterBoldBase64(): string {
-  if (!_fontBase64) {
-    const fontPath = path.join(process.cwd(), 'lib/brand/fonts/Inter-Bold.ttf');
-    _fontBase64 = fs.readFileSync(fontPath).toString('base64');
-  }
-  return _fontBase64;
-}
-
-let _fontRegularBase64: string | null = null;
-function getInterRegularBase64(): string {
-  if (!_fontRegularBase64) {
-    const fontPath = path.join(process.cwd(), 'lib/brand/fonts/Inter-Regular.ttf');
-    _fontRegularBase64 = fs.readFileSync(fontPath).toString('base64');
-  }
-  return _fontRegularBase64;
-}
 
 function hexToRgbValues(hex: string): { r: number; g: number; b: number } {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -134,9 +117,6 @@ async function generateFrontPng(
   logoPngBuffer: Buffer, palette: BrandPalette,
   visPrimary: string, brandName: string, domainName: string
 ): Promise<Buffer> {
-  const boldBase64 = getInterBoldBase64();
-  const regularBase64 = getInterRegularBase64();
-
   // White background with accent bar on left
   const bgSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">
   <rect width="${CARD_W}" height="${CARD_H}" fill="white"/>
@@ -152,24 +132,16 @@ async function generateFrontPng(
     .png()
     .toBuffer();
 
-  // Text overlay: brand name + placeholder contact info
-  const textSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">
-  <defs>
-    <style>
-      @font-face { font-family: "InterBold"; src: url(data:font/truetype;base64,${boldBase64}); }
-      @font-face { font-family: "InterRegular"; src: url(data:font/truetype;base64,${regularBase64}); }
-    </style>
-  </defs>
-  <text x="40" y="190" font-family="InterBold" font-size="28" font-weight="700" fill="${palette.dark}">${escapeXml(brandName)}</text>
-  <text x="40" y="260" font-family="InterRegular" font-size="16" fill="#6B7280">Your Name</text>
-  <text x="40" y="290" font-family="InterRegular" font-size="14" fill="#9CA3AF">Job Title</text>
-  <text x="40" y="350" font-family="InterRegular" font-size="14" fill="#6B7280">hello@${escapeXml(domainName)}.com</text>
-  <text x="40" y="380" font-family="InterRegular" font-size="14" fill="#6B7280">+1 (555) 000-0000</text>
-  <text x="40" y="410" font-family="InterRegular" font-size="14" fill="#6B7280">${escapeXml(domainName)}.com</text>
-</svg>`;
+  // Text overlay using opentype.js path rendering (no @font-face needed)
+  const textSvg = buildTextSvg(CARD_W, CARD_H, [
+    { text: brandName, x: 40, y: 190, fontSize: 28, color: palette.dark, weight: 'bold' },
+    { text: 'Your Name', x: 40, y: 260, fontSize: 16, color: '#6B7280', weight: 'regular' },
+    { text: 'Job Title', x: 40, y: 290, fontSize: 14, color: '#9CA3AF', weight: 'regular' },
+    { text: `hello@${domainName}.com`, x: 40, y: 350, fontSize: 14, color: '#6B7280', weight: 'regular' },
+    { text: '+1 (555) 000-0000', x: 40, y: 380, fontSize: 14, color: '#6B7280', weight: 'regular' },
+    { text: `${domainName}.com`, x: 40, y: 410, fontSize: 14, color: '#6B7280', weight: 'regular' },
+  ]);
 
-  // Pre-render the text SVG to PNG first — Sharp can't resolve @font-face data URIs
-  // in SVG overlays, so we rasterize the SVG to a PNG buffer, then composite the PNG.
   const textPng = await sharp(Buffer.from(textSvg))
     .resize(CARD_W, CARD_H)
     .png()

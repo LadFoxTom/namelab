@@ -1,27 +1,21 @@
 import sharp from 'sharp';
+import { textToPathElement } from './textRenderer';
 
 export async function applyWatermark(imageBuffer: Buffer): Promise<Buffer> {
   const width = 400;
   const height = 400;
 
+  // Build rotated text paths using opentype.js (avoids system font dependency)
+  const mainText = textToPathElement('SPARKDOMAIN PREVIEW', width / 2, height / 2, 18, 'rgba(0,0,0,0.35)', { weight: 'bold', anchor: 'middle' });
+  const subText = textToPathElement('Not for commercial use', width / 2, height * 0.65, 12, 'rgba(0,0,0,0.25)', { weight: 'regular', anchor: 'middle' });
+
   const watermarkSvg = `
     <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
       <rect width="${width}" height="${height}" fill="rgba(255,255,255,0.45)"/>
-      <text
-        x="50%" y="50%"
-        dominant-baseline="middle" text-anchor="middle"
-        font-family="Arial, sans-serif" font-size="18" font-weight="bold"
-        fill="rgba(0,0,0,0.35)"
-        transform="rotate(-35, ${width / 2}, ${height / 2})"
-        letter-spacing="3"
-      >SPARKDOMAIN PREVIEW</text>
-      <text
-        x="50%" y="65%"
-        dominant-baseline="middle" text-anchor="middle"
-        font-family="Arial, sans-serif" font-size="12"
-        fill="rgba(0,0,0,0.25)"
-        transform="rotate(-35, ${width / 2}, ${height / 2})"
-      >Not for commercial use</text>
+      <g transform="rotate(-35, ${width / 2}, ${height / 2})">
+        ${mainText}
+        ${subText}
+      </g>
     </svg>`;
 
   return sharp(imageBuffer)

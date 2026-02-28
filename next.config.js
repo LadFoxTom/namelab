@@ -3,6 +3,11 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['sharp', 'archiver', 'png-to-ico'],
   },
+  outputFileTracingIncludes: {
+    '/api/brand/build-kit': ['./lib/brand/fonts/**/*'],
+    '/api/brand/mockup': ['./lib/brand/fonts/**/*'],
+    '/api/brand/rebuild-kit': ['./lib/brand/fonts/**/*'],
+  },
   images: {
     remotePatterns: [
       {
