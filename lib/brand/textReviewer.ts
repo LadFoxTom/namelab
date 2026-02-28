@@ -24,23 +24,36 @@ export async function reviewLogoText(
   }
 
   try {
+    const expectedLetters = expectedText.split('').join(' - ');
+
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      max_tokens: 300,
+      model: 'gpt-4o',
+      max_tokens: 400,
       messages: [
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: `Look at this logo image carefully. Read ALL text and letters visible in the image.
-Spell out every character you see, in order, exactly as rendered. If there are multiple words or text elements, include all of them.
+              text: `You are a precise text-reading agent. Look at this logo image very carefully.
+
+TASK: Read ALL text/letters visible in the image, character by character.
+
+EXPECTED TEXT: "${expectedText}"
+EXPECTED LETTERS (one by one): ${expectedLetters}
+
+INSTRUCTIONS:
+1. Look at each letter in the logo from left to right.
+2. Spell out every single character you see, one by one.
+3. Compare your reading against the expected text character by character.
+4. Pay special attention to: doubled letters, easily confused letters (n/m, l/i, e/c), and missing/extra characters.
 
 Return JSON only:
 {
   "detectedText": "<exact characters visible, in reading order>",
+  "letterByLetter": "<each detected letter separated by dashes, e.g. p-a-r-t-y>",
   "confidence": "high" | "medium" | "low",
-  "notes": "<any observations about text clarity or stylization>"
+  "notes": "<any observations about text clarity, missing or extra characters>"
 }`
             },
             {

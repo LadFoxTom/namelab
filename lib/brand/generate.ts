@@ -24,7 +24,7 @@ export interface GeneratedConcept {
 const LOGO_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'monogram', 'abstract_mark', 'pictorial', 'mascot', 'emblem', 'dynamic'];
 const FAL_CONCURRENCY = 2;
 const MAX_ATTEMPTS = 2;
-const MAX_ATTEMPTS_TEXT = 3; // Extra attempt for text-bearing styles
+const MAX_ATTEMPTS_TEXT = 4; // Extra attempts for text-bearing styles
 
 const TEXT_STYLES: LogoStyle[] = ['wordmark', 'icon_wordmark', 'emblem', 'dynamic'];
 
